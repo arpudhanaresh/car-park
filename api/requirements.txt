@@ -1,3 +1,9 @@
 fastapi
 uvicorn
 pydantic
+pymysql
+cryptography
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
