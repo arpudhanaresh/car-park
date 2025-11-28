@@ -20,8 +20,21 @@ export interface LayoutConfig {
     cols: number;
 }
 
+export interface User {
+    username: string;
+    role: string;
+}
+
+export interface AuthResponse {
+    access_token: string;
+    token_type: string;
+    role: string;
+    username: string;
+}
+
 class ApiService {
     private axiosInstance: AxiosInstance;
+    private token: string | null = null;
 
     constructor(baseURL: string) {
         this.axiosInstance = axios.create({
@@ -30,6 +43,18 @@ class ApiService {
                 'Content-Type': 'application/json',
             },
         });
+
+        // Add interceptor to inject token
+        this.axiosInstance.interceptors.request.use((config) => {
+            if (this.token) {
+                config.headers.Authorization = `Bearer ${this.token}`;
+            }
+            return config;
+        });
+    }
+
+    public setAuthToken(token: string | null) {
+        this.token = token;
     }
 
     public async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
@@ -65,4 +90,20 @@ export const updateLayout = async (config: LayoutConfig): Promise<ParkingState> 
 
 export const bookSpot = async (row: number, col: number, is_booked: boolean): Promise<ParkingState> => {
     return apiService.post<ParkingState>(API_ENDPOINTS.BOOK, { row, col, is_booked });
+};
+
+export const login = async (username: string, password: string): Promise<AuthResponse> => {
+    // FormData for OAuth2
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+    
+    const response = await axios.post(`${API_URL}/login`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+};
+
+export const signup = async (username: string, password: string, role: string = 'customer'): Promise<AuthResponse> => {
+    return apiService.post<AuthResponse>('/signup', { username, password, role });
 };

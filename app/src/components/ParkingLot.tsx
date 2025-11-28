@@ -1,99 +1,68 @@
-import React from 'react';
 import type { Spot } from '../services/api';
-import './ParkingLot.css';
 
 interface ParkingLotProps {
-  rows: number;
-  cols: number;
-  spots: Spot[];
-  onSpotClick: (row: number, col: number) => void;
-  isCustomer: boolean;
-  selectedSpot?: { row: number; col: number } | null;
+    rows: number;
+    cols: number;
+    spots: Spot[];
+    onSpotClick: (row: number, col: number) => void;
+    isCustomer: boolean;
+    selectedSpot?: { row: number; col: number } | null;
 }
 
-const ParkingLot: React.FC<ParkingLotProps> = ({
-  rows,
-  cols,
-  spots,
-  onSpotClick,
-  isCustomer,
-  selectedSpot
-}) => {
-  const gridStyle = {
-    gridTemplateColumns: `repeat(${cols}, minmax(70px, 1fr))`
-  };
+const ParkingLot = ({ rows, cols, spots, onSpotClick, isCustomer, selectedSpot }: ParkingLotProps) => {
+    const getSpotStatus = (spot: Spot) => {
+        if (spot.is_booked) return 'booked';
+        if (selectedSpot && selectedSpot.row === spot.row && selectedSpot.col === spot.col) return 'selected';
+        return 'available';
+    };
 
-  const renderSpots = () => {
-    const grid = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const spot = spots.find(s => s.row === r && s.col === c);
-        const isBooked = spot ? spot.is_booked : false;
-        const isSelected = selectedSpot?.row === r && selectedSpot?.col === c;
+    return (
+        <div className="w-full overflow-x-auto pb-4">
+            <div
+                className="grid gap-4 mx-auto min-w-fit"
+                style={{
+                    gridTemplateColumns: `repeat(${cols}, minmax(80px, 1fr))`
+                }}
+            >
+                {spots.map((spot) => {
+                    const status = getSpotStatus(spot);
+                    let spotColorClass = 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200 hover:scale-105 shadow-sm';
 
-        grid.push(
-          <div
-            key={`${r}-${c}`}
-            onClick={() => isCustomer && !isBooked && onSpotClick(r, c)}
-            className={`parking-spot ${
-              isSelected ? 'selected' : isBooked ? 'booked' : 'available'
-            } ${isCustomer && !isBooked ? '' : 'disabled'}`}
-          >
-            <div className="spot-icon">
-              {isBooked ? '🚗' : '🅿️'}
+                    if (status === 'booked') {
+                        spotColorClass = 'bg-red-100 border-red-300 text-red-700 cursor-not-allowed opacity-80';
+                    } else if (status === 'selected') {
+                        spotColorClass = 'bg-blue-500 border-blue-600 text-white shadow-md scale-105 ring-2 ring-blue-300';
+                    }
+
+                    return (
+                        <div
+                            key={`${spot.row}-${spot.col}`}
+                            className={`
+                h-24 rounded-xl border-2 flex flex-col items-center justify-center 
+                cursor-pointer transition-all duration-200 font-bold text-lg relative
+                ${spotColorClass}
+              `}
+                            onClick={() => {
+                                if (!spot.is_booked && isCustomer) {
+                                    onSpotClick(spot.row, spot.col);
+                                }
+                            }}
+                        >
+                            <span className="text-2xl mb-1">
+                                {status === 'booked' ? '🚗' : status === 'selected' ? '✅' : '🅿️'}
+                            </span>
+                            <span>
+                                {String.fromCharCode(65 + spot.row)}{spot.col + 1}
+                            </span>
+                            {status === 'available' && isCustomer && (
+                                <span className="text-xs font-normal opacity-75 mt-1">Free</span>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
-            <div className="spot-label">
-              {String.fromCharCode(65 + r)}{c + 1}
-            </div>
-            <div className={`spot-status ${isBooked ? 'booked' : 'available'}`}></div>
-          </div>
-        );
-      }
-    }
-    return grid;
-  };
-
-  const availableCount = spots.filter(s => !s.is_booked).length;
-  const bookedCount = spots.filter(s => s.is_booked).length;
-  const totalSpots = rows * cols;
-
-  return (
-    <div className="parking-lot-wrapper">
-      <div className="parking-lot-header">
-        <div className="lot-title">
-          <span>🅿️</span>
-          <h3>Parking Layout ({rows}×{cols})</h3>
         </div>
-        <div className="parking-legend">
-          <div className="legend-item">
-            <div className="legend-color available"></div>
-            <span>Available ({availableCount})</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-color booked"></div>
-            <span>Booked ({bookedCount})</span>
-          </div>
-          {selectedSpot && (
-            <div className="legend-item">
-              <div className="legend-color selected"></div>
-              <span>Selected</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {totalSpots > 0 ? (
-        <div className="parking-grid" style={gridStyle}>
-          {renderSpots()}
-        </div>
-      ) : (
-        <div className="empty-state">
-          <div className="empty-state-icon">🅿️</div>
-          <p>No parking spots configured. Admin can set up the layout.</p>
-        </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default ParkingLot;
