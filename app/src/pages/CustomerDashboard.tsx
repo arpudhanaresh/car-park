@@ -18,6 +18,9 @@ interface Booking {
 const CustomerDashboard: React.FC = () => {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+    const [cancellationReason, setCancellationReason] = useState('');
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -35,10 +38,18 @@ const CustomerDashboard: React.FC = () => {
         }
     };
 
-    const handleCancel = async (id: number) => {
-        if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+    const handleCancelClick = (id: number) => {
+        setSelectedBookingId(id);
+        setCancellationReason('');
+        setIsCancelModalOpen(true);
+    };
+
+    const confirmCancel = async () => {
+        if (!selectedBookingId) return;
+
         try {
-            await parking.cancelBooking(id, "User requested cancellation");
+            await parking.cancelBooking(selectedBookingId, cancellationReason);
+            setIsCancelModalOpen(false);
             fetchBookings(); // Refresh list
         } catch (error) {
             console.error("Failed to cancel booking", error);
@@ -47,7 +58,7 @@ const CustomerDashboard: React.FC = () => {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 relative">
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-white tracking-tight">My Bookings</h1>
@@ -113,11 +124,11 @@ const CustomerDashboard: React.FC = () => {
 
                             <div className="pt-4 border-t border-white/5 flex justify-between items-center">
                                 <span className="font-bold text-xl text-white text-glow">
-                                    ${booking.payment_amount}
+                                    RM {booking.payment_amount}
                                 </span>
                                 {booking.can_cancel && (
                                     <button
-                                        onClick={() => handleCancel(booking.id)}
+                                        onClick={() => handleCancelClick(booking.id)}
                                         className="flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
                                     >
                                         <Trash2 size={14} />
@@ -141,6 +152,41 @@ const CustomerDashboard: React.FC = () => {
                     >
                         Book Your First Spot
                     </button>
+                </div>
+            )}
+
+            {/* Cancellation Modal */}
+            {isCancelModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="glass-card w-full max-w-md rounded-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-white/10">
+                            <h2 className="text-xl font-bold text-white">Cancel Booking</h2>
+                            <p className="text-sm text-gray-400 mt-1">Please provide a reason for cancellation.</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <textarea
+                                value={cancellationReason}
+                                onChange={(e) => setCancellationReason(e.target.value)}
+                                placeholder="Reason for cancellation..."
+                                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all min-h-[100px]"
+                            />
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    onClick={() => setIsCancelModalOpen(false)}
+                                    className="px-4 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                >
+                                    Keep Booking
+                                </button>
+                                <button
+                                    onClick={confirmCancel}
+                                    disabled={!cancellationReason.trim()}
+                                    className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-xl font-bold transition-all shadow-lg shadow-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Confirm Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

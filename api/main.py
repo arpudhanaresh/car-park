@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import List
 from contextlib import asynccontextmanager
 
@@ -221,19 +221,32 @@ def get_vehicle_by_license(license_plate: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
 
+@app.get("/my-vehicles", response_model=List[VehicleResponse])
+def get_my_vehicles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+
 @app.post("/vehicles", response_model=VehicleResponse)
-def create_or_update_vehicle(vehicle_data: VehicleCreate, db: Session = Depends(get_db)):
+def create_or_update_vehicle(vehicle_data: VehicleCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     # Check if vehicle already exists
     existing_vehicle = db.query(Vehicle).filter(
         Vehicle.license_plate == vehicle_data.license_plate.upper()
     ).first()
     
     if existing_vehicle:
+        # Check ownership if vehicle exists
+        if existing_vehicle.user_id and existing_vehicle.user_id != current_user.id:
+             raise HTTPException(status_code=400, detail="Vehicle already registered to another user")
+
         # Update existing vehicle
         for field, value in vehicle_data.dict(exclude_unset=True).items():
             if field == "license_plate":
                 value = value.upper()
             setattr(existing_vehicle, field, value)
+        
+        # Associate with user if not already
+        if not existing_vehicle.user_id:
+            existing_vehicle.user_id = current_user.id
+            
         existing_vehicle.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(existing_vehicle)
@@ -242,6 +255,9 @@ def create_or_update_vehicle(vehicle_data: VehicleCreate, db: Session = Depends(
         # Create new vehicle
         vehicle_dict = vehicle_data.dict()
         vehicle_dict["license_plate"] = vehicle_dict["license_plate"].upper()
+        if not vehicle_dict.get("owner_name"):
+            vehicle_dict["owner_name"] = current_user.username
+        vehicle_dict["user_id"] = current_user.id
         new_vehicle = Vehicle(**vehicle_dict)
         db.add(new_vehicle)
         db.commit()

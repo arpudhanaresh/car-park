@@ -49,8 +49,11 @@ class Vehicle(Base):
     year = Column(Integer)
     phone = Column(String(20))
     email = Column(String(100))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = relationship("User", backref="vehicles")
     
 class Booking(Base):
     __tablename__ = "bookings"
@@ -131,7 +134,7 @@ class LayoutConfig(BaseModel):
 
 class VehicleCreate(BaseModel):
     license_plate: str = Field(..., min_length=1, max_length=20)
-    owner_name: str = Field(..., min_length=1, max_length=100)
+    owner_name: Optional[str] = Field(None, max_length=100)
     make: Optional[str] = Field(None, max_length=50)
     model: Optional[str] = Field(None, max_length=50)
     color: Optional[str] = Field(None, max_length=30)

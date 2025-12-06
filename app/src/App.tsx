@@ -6,6 +6,7 @@ import Auth from './pages/Auth';
 import AdminDashboard from './pages/AdminDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
 import BookingPage from './pages/BookingPage';
+import MyVehicles from './pages/MyVehicles';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({
@@ -53,6 +54,14 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['customer']}>
               <BookingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vehicles"
+          element={
+            <ProtectedRoute allowedRoles={['customer']}>
+              <MyVehicles />
             </ProtectedRoute>
           }
         />

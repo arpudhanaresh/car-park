@@ -24,7 +24,12 @@ const BookingPage: React.FC = () => {
     const [layout, setLayout] = useState<Layout | null>(null);
 
     // Form State
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    // Use local date for default value to avoid timezone issues (e.g. showing yesterday)
+    const [date, setDate] = useState(() => {
+        const d = new Date();
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    });
     const [startTime, setStartTime] = useState('09:00');
     const [duration, setDuration] = useState(2);
     const [selectedSpot, setSelectedSpot] = useState<{ row: number, col: number } | null>(null);
@@ -39,9 +44,12 @@ const BookingPage: React.FC = () => {
         color: '',
     });
 
-    // Fetch layout on mount
+    const [myVehicles, setMyVehicles] = useState<any[]>([]);
+
+    // Fetch layout and vehicles on mount
     useEffect(() => {
         fetchLayout();
+        fetchMyVehicles();
     }, []);
 
     const fetchLayout = async () => {
@@ -50,6 +58,34 @@ const BookingPage: React.FC = () => {
             setLayout(response.data);
         } catch (error) {
             console.error("Failed to fetch layout", error);
+        }
+    };
+
+    const fetchMyVehicles = async () => {
+        try {
+            const response = await vehicles.getMyVehicles();
+            setMyVehicles(response.data);
+        } catch (error) {
+            console.error("Failed to fetch vehicles", error);
+        }
+    };
+
+    const handleVehicleSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const plate = e.target.value;
+        if (!plate) return;
+
+        const vehicle = myVehicles.find(v => v.license_plate === plate);
+        if (vehicle) {
+            setVehicleData(prev => ({
+                ...prev,
+                license_plate: vehicle.license_plate,
+                name: vehicle.owner_name,
+                phone: vehicle.phone || prev.phone,
+                email: vehicle.email || prev.email,
+                make: vehicle.make || prev.make,
+                model: vehicle.model || prev.model,
+                color: vehicle.color || prev.color,
+            }));
         }
     };
 
@@ -77,8 +113,9 @@ const BookingPage: React.FC = () => {
         if (!selectedSpot) return;
         setLoading(true);
 
-        const startDateTime = new Date(`${date}T${startTime}`);
-        const endDateTime = new Date(startDateTime.getTime() + duration * 60 * 60 * 1000);
+        // Create date object from local input
+        const localStartDateTime = new Date(`${date}T${startTime}`);
+        const localEndDateTime = new Date(localStartDateTime.getTime() + duration * 60 * 60 * 1000);
 
         try {
             await parking.createBooking({
@@ -97,8 +134,8 @@ const BookingPage: React.FC = () => {
                 name: vehicleData.name,
                 email: vehicleData.email,
                 phone: vehicleData.phone,
-                start_time: startDateTime.toISOString(),
-                end_time: endDateTime.toISOString(),
+                start_time: localStartDateTime.toISOString(), // This converts to UTC automatically
+                end_time: localEndDateTime.toISOString(),
                 payment_method: 'credit_card', // Mock
                 payment_amount: duration * 10, // Mock $10/hr
             });
@@ -266,6 +303,20 @@ const BookingPage: React.FC = () => {
 
                         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
                             <div className="space-y-6">
+                                {myVehicles.length > 0 && (
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Select Saved Vehicle</label>
+                                        <select
+                                            onChange={handleVehicleSelect}
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all appearance-none"
+                                        >
+                                            <option value="">-- Select a vehicle --</option>
+                                            {myVehicles.map(v => (
+                                                <option key={v.id} value={v.license_plate}>{v.license_plate} - {v.make} {v.model}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div className="space-y-2">
                                     <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">License Plate</label>
                                     <input

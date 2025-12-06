@@ -98,6 +98,18 @@ const Layout: React.FC = () => {
                                 <span className="font-medium">Book a Spot</span>
                                 {isActive('/book') && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]" />}
                             </Link>
+                            <Link
+                                to="/vehicles"
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 group ${isActive('/vehicles')
+                                    ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]'
+                                    : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-100'
+                                    }`}
+                            >
+                                <Car size={20} className={isActive('/vehicles') ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-300'} />
+                                <span className="font-medium">My Vehicles</span>
+                                {isActive('/vehicles') && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.8)]" />}
+                            </Link>
                         </>
                     )}
                 </nav>

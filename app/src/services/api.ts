@@ -48,6 +48,8 @@ export const parking = {
 
 export const vehicles = {
   getByLicense: (plate: string) => api.get(`/vehicles/${plate}`),
+  getMyVehicles: () => api.get('/my-vehicles'),
+  createOrUpdate: (data: any) => api.post('/vehicles', data),
 };
 
 export default api;
