@@ -112,16 +112,16 @@ const BookingPage: React.FC = () => {
     };
 
     const renderStepIndicator = () => (
-        <div className="flex items-center justify-center mb-4 sm:mb-8">
+        <div className="flex items-center justify-center mb-8">
             {[1, 2, 3].map((s) => (
                 <div key={s} className="flex items-center">
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm transition-all
-            ${step === s ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-300' :
-                            step > s ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}>
-                        {step > s ? <Check size={16} className="sm:w-[18px] sm:h-[18px]" /> : s}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 border-2
+            ${step === s ? 'bg-indigo-600 border-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' :
+                            step > s ? 'bg-green-500 border-green-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-500'}`}>
+                        {step > s ? <Check size={18} /> : s}
                     </div>
                     {s < 3 && (
-                        <div className={`w-8 sm:w-16 h-0.5 mx-1 sm:mx-2 ${step > s ? 'bg-green-500' : 'bg-gray-300'}`} />
+                        <div className={`w-16 h-0.5 mx-2 transition-colors duration-300 ${step > s ? 'bg-green-500' : 'bg-gray-800'}`} />
                     )}
                 </div>
             ))}
@@ -129,52 +129,54 @@ const BookingPage: React.FC = () => {
     );
 
     return (
-        <div className="max-w-3xl mx-auto px-3 sm:px-4">
-            <div className="text-center mb-4 sm:mb-6">
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">Book a Parking Spot</h1>
-                <p className="text-xs sm:text-sm text-gray-500">Complete the steps to reserve your space</p>
+        <div className="max-w-4xl mx-auto px-4">
+            <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Book a Parking Spot</h1>
+                <p className="text-gray-400">Complete the steps to reserve your premium space</p>
             </div>
 
             {renderStepIndicator()}
 
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg border border-gray-200">
+            <div className="glass-card rounded-2xl overflow-hidden">
                 {/* Step 1: Time Selection */}
                 {step === 1 && (
-                    <div className="p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 flex items-center gap-2 text-gray-900">
-                            <Clock className="text-indigo-600" size={18} />
+                    <div className="p-8">
+                        <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-white">
+                            <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                                <Clock size={24} />
+                            </div>
                             Select Date & Time
                         </h2>
 
-                        <div className="space-y-3 sm:space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Date</label>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="space-y-2">
+                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Date</label>
                                 <input
                                     type="date"
                                     value={date}
                                     min={new Date().toISOString().split('T')[0]}
                                     onChange={(e) => setDate(e.target.value)}
-                                    className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Start Time</label>
+                            <div className="space-y-2">
+                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Start Time</label>
                                 <input
                                     type="time"
                                     value={startTime}
                                     onChange={(e) => setStartTime(e.target.value)}
-                                    className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Duration (Hours)</label>
+                            <div className="space-y-2">
+                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Duration</label>
                                 <select
                                     value={duration}
                                     onChange={(e) => setDuration(parseInt(e.target.value))}
-                                    className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+                                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all appearance-none"
                                 >
                                     {[1, 2, 3, 4, 5, 6, 7, 8, 12, 24].map(h => (
-                                        <option key={h} value={h}>{h} Hour{h > 1 ? 's' : ''}</option>
+                                        <option key={h} value={h} className="bg-gray-900">{h} Hour{h > 1 ? 's' : ''}</option>
                                     ))}
                                 </select>
                             </div>
@@ -184,18 +186,20 @@ const BookingPage: React.FC = () => {
 
                 {/* Step 2: Spot Selection */}
                 {step === 2 && (
-                    <div className="p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 flex items-center gap-2 text-gray-900">
-                            <MapPin className="text-indigo-600" size={18} />
+                    <div className="p-8">
+                        <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-white">
+                            <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                                <MapPin size={24} />
+                            </div>
                             Select a Spot
                         </h2>
 
                         {layout ? (
                             <div className="flex justify-center overflow-x-auto pb-4">
                                 <div
-                                    className="grid gap-1.5 sm:gap-2 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200"
+                                    className="grid gap-3 p-6 bg-gray-800/30 rounded-2xl border border-gray-700/50"
                                     style={{
-                                        gridTemplateColumns: `repeat(${layout.cols}, minmax(40px, 1fr))`
+                                        gridTemplateColumns: `repeat(${layout.cols}, minmax(50px, 1fr))`
                                     }}
                                 >
                                     {Array.from({ length: layout.rows }).map((_, r) => (
@@ -210,16 +214,16 @@ const BookingPage: React.FC = () => {
                                                     disabled={isBooked}
                                                     onClick={() => setSelectedSpot({ row: r, col: c })}
                                                     className={`
-                            h-10 sm:h-12 rounded-md sm:rounded-lg flex items-center justify-center text-[10px] sm:text-xs font-semibold transition-all
+                            h-14 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 relative overflow-hidden
                             ${isBooked
-                                                            ? 'bg-red-100 text-red-400 cursor-not-allowed'
+                                                            ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed border border-red-900/20'
                                                             : isSelected
-                                                                ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-300'
-                                                                : 'bg-white border border-green-400 text-green-700 hover:border-green-600 hover:bg-green-50'
+                                                                ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] border border-indigo-400 scale-110 z-10'
+                                                                : 'bg-gray-800/50 text-gray-400 border border-gray-700 hover:border-indigo-500/50 hover:text-indigo-300 hover:bg-gray-700/50'
                                                         }
                           `}
                                                 >
-                                                    {isBooked ? 'X' : `${r + 1}-${c + 1}`}
+                                                    {isBooked ? 'X' : `${String.fromCharCode(65 + r)}${c + 1}`}
                                                 </button>
                                             );
                                         })
@@ -227,21 +231,24 @@ const BookingPage: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-center py-6 sm:py-8 text-gray-500 text-xs sm:text-sm">Loading layout...</div>
+                            <div className="text-center py-12 text-gray-500">
+                                <Loader2 className="animate-spin mx-auto mb-2" />
+                                Loading layout...
+                            </div>
                         )}
 
-                        <div className="flex justify-center gap-2 sm:gap-4 mt-3 sm:mt-4 text-[10px] sm:text-xs flex-wrap">
-                            <div className="flex items-center gap-1">
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-white border border-green-400 rounded"></div>
-                                <span className="text-gray-600">Available</span>
+                        <div className="flex justify-center gap-6 mt-6 text-sm">
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-gray-800 border border-gray-600 rounded-full"></div>
+                                <span className="text-gray-400">Available</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-indigo-600 rounded"></div>
-                                <span className="text-gray-600">Selected</span>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
+                                <span className="text-gray-300">Selected</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-red-100 rounded"></div>
-                                <span className="text-gray-600">Occupied</span>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-red-900/50 border border-red-900 rounded-full"></div>
+                                <span className="text-gray-500">Occupied</span>
                             </div>
                         </div>
                     </div>
@@ -249,78 +256,79 @@ const BookingPage: React.FC = () => {
 
                 {/* Step 3: Details & Payment */}
                 {step === 3 && (
-                    <div className="p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 flex items-center gap-2 text-gray-900">
-                            <Car className="text-indigo-600" size={18} />
+                    <div className="p-8">
+                        <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-white">
+                            <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                                <Car size={24} />
+                            </div>
                             Vehicle & Payment Details
                         </h2>
 
-                        <div className="space-y-4 sm:space-y-6">
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">License Plate</label>
+                        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
+                            <div className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">License Plate</label>
                                     <input
                                         type="text"
                                         value={vehicleData.license_plate}
                                         onChange={(e) => setVehicleData({ ...vehicleData, license_plate: e.target.value.toUpperCase() })}
                                         onBlur={handleLicenseBlur}
                                         placeholder="ABC1234"
-                                        className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-mono uppercase"
+                                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all font-mono uppercase"
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">Auto-fill if registered</p>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Owner Name</label>
+                                <div className="space-y-2">
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Owner Name</label>
                                     <input
                                         type="text"
                                         value={vehicleData.name}
                                         onChange={(e) => setVehicleData({ ...vehicleData, name: e.target.value })}
                                         placeholder="Full Name"
-                                        className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                     />
                                 </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Phone</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</label>
                                         <input
                                             type="tel"
                                             value={vehicleData.phone}
                                             onChange={(e) => setVehicleData({ ...vehicleData, phone: e.target.value })}
                                             placeholder="+60 12-345 6789"
-                                            className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">Email</label>
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Email</label>
                                         <input
                                             type="email"
                                             value={vehicleData.email}
                                             onChange={(e) => setVehicleData({ ...vehicleData, email: e.target.value })}
                                             placeholder="email@example.com"
-                                            className="w-full px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="bg-gradient-to-br from-indigo-50 to-violet-50 p-3 sm:p-4 rounded-lg border border-indigo-200">
-                                <h3 className="font-semibold text-xs sm:text-sm text-gray-900 mb-2 sm:mb-3">Booking Summary</h3>
-                                <div className="space-y-1.5 sm:space-y-2 text-xs">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Spot</span>
-                                        <span className="font-semibold text-gray-900">Row {selectedSpot?.row! + 1}, Col {selectedSpot?.col! + 1}</span>
+                            <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-6 rounded-2xl border border-indigo-500/20">
+                                <h3 className="font-bold text-lg text-white mb-4">Booking Summary</h3>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex justify-between py-2 border-b border-white/10">
+                                        <span className="text-gray-400">Spot</span>
+                                        <span className="font-mono font-bold text-indigo-300">{String.fromCharCode(65 + selectedSpot?.row!)}{selectedSpot?.col! + 1}</span>
                                     </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Date</span>
-                                        <span className="font-semibold text-gray-900">{date}</span>
+                                    <div className="flex justify-between py-2 border-b border-white/10">
+                                        <span className="text-gray-400">Date</span>
+                                        <span className="font-medium text-white">{date}</span>
                                     </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Time</span>
-                                        <span className="font-semibold text-gray-900">{startTime} ({duration} hrs)</span>
+                                    <div className="flex justify-between py-2 border-b border-white/10">
+                                        <span className="text-gray-400">Time</span>
+                                        <span className="font-medium text-white">{startTime} ({duration} hrs)</span>
                                     </div>
-                                    <div className="pt-2 border-t border-indigo-200 flex justify-between items-center">
-                                        <span className="font-bold text-sm text-gray-900">Total</span>
-                                        <span className="text-lg sm:text-xl font-bold text-indigo-600">RM {duration * 10}</span>
+                                    <div className="pt-4 flex justify-between items-center">
+                                        <span className="font-bold text-gray-200">Total</span>
+                                        <span className="text-2xl font-bold text-indigo-400 text-glow">RM {duration * 10}</span>
                                     </div>
                                 </div>
                             </div>
@@ -329,14 +337,14 @@ const BookingPage: React.FC = () => {
                 )}
 
                 {/* Navigation Buttons */}
-                <div className="bg-gray-50 px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 flex justify-between gap-2">
+                <div className="bg-gray-900/50 px-8 py-6 border-t border-white/5 flex justify-between gap-4">
                     <button
                         onClick={() => setStep(s => Math.max(1, s - 1))}
                         disabled={step === 1}
-                        className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                     >
-                        <ChevronLeft size={16} className="sm:w-[18px] sm:h-[18px]" />
-                        <span className="hidden sm:inline">Back</span>
+                        <ChevronLeft size={18} />
+                        Back
                     </button>
 
                     {step < 3 ? (
@@ -348,18 +356,18 @@ const BookingPage: React.FC = () => {
                                 }
                                 setStep(s => Math.min(3, s + 1));
                             }}
-                            className="flex items-center gap-1 sm:gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 sm:px-5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-md"
+                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5"
                         >
-                            <span>Next</span>
-                            <ChevronRight size={16} className="sm:w-[18px] sm:h-[18px]" />
+                            Next
+                            <ChevronRight size={18} />
                         </button>
                     ) : (
                         <button
                             onClick={handleSubmit}
                             disabled={loading || !vehicleData.license_plate || !vehicleData.name}
-                            className="flex items-center gap-1 sm:gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 sm:px-6 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white px-8 py-2.5 rounded-xl text-sm font-bold transition-all shadow-lg shadow-green-500/20 hover:shadow-green-500/40 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? <Loader2 size={16} className="sm:w-[18px] sm:h-[18px] animate-spin" /> : <span>Confirm</span>}
+                            {loading ? <Loader2 size={18} className="animate-spin" /> : <span>Confirm Booking</span>}
                         </button>
                     )}
                 </div>

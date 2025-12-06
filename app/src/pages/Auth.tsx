@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../services/api';
-import { Car, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Car, Lock, User, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 
 const Auth: React.FC = () => {
     const [isLogin, setIsLogin] = useState(true);
@@ -45,9 +45,8 @@ const Auth: React.FC = () => {
                 const response = await auth.signup({
                     username: formData.username,
                     password: formData.password,
-                    role: 'customer', // Default to customer for signup
+                    role: 'customer',
                 });
-                // Auto login after signup
                 const { access_token, role, username } = response.data;
                 login(username, role, access_token);
                 navigate('/dashboard');
@@ -61,30 +60,41 @@ const Auth: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
-            <div className="max-w-sm w-full bg-white rounded-xl shadow-xl overflow-hidden border border-gray-100">
-                <div className="p-6">
-                    <div className="flex justify-center mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                            <Car size={24} />
+        <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+            {/* Background Elements */}
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 rounded-full blur-[100px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[100px]" />
+            </div>
+
+            <div className="max-w-md w-full glass-card rounded-2xl overflow-hidden relative z-10">
+                <div className="p-8">
+                    <div className="flex justify-center mb-6">
+                        <div className="relative group">
+                            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-40 group-hover:opacity-75 transition duration-200" />
+                            <div className="relative w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center text-white border border-white/10">
+                                <Car size={32} className="text-indigo-400" />
+                            </div>
                         </div>
                     </div>
 
-                    <h2 className="text-xl font-bold text-center text-gray-900 mb-1 tracking-tight">
-                        {isLogin ? 'Welcome Back' : 'Create Account'}
-                    </h2>
-                    <p className="text-center text-gray-500 mb-5 text-xs">
-                        {isLogin
-                            ? 'Enter your credentials to access your account'
-                            : 'Join us to experience premium parking services'}
-                    </p>
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">
+                            {isLogin ? 'Welcome Back' : 'Join the Future'}
+                        </h2>
+                        <p className="text-gray-400 text-sm">
+                            {isLogin
+                                ? 'Access your premium parking space'
+                                : 'Start your journey with smart parking'}
+                        </p>
+                    </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-1.5">
-                            <label className="block text-xs font-semibold text-gray-700">Username</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
-                                    <User size={16} />
+                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Username</label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-indigo-400 transition-colors">
+                                    <User size={18} />
                                 </div>
                                 <input
                                     type="text"
@@ -92,17 +102,17 @@ const Auth: React.FC = () => {
                                     required
                                     value={formData.username}
                                     onChange={handleChange}
-                                    className="block w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-gray-900"
+                                    className="block w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-gray-100 placeholder-gray-600 transition-all outline-none"
                                     placeholder="Enter your username"
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="block text-xs font-semibold text-gray-700">Password</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
-                                    <Lock size={16} />
+                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Password</label>
+                            <div className="relative group">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-indigo-400 transition-colors">
+                                    <Lock size={18} />
                                 </div>
                                 <input
                                     type="password"
@@ -110,7 +120,7 @@ const Auth: React.FC = () => {
                                     required
                                     value={formData.password}
                                     onChange={handleChange}
-                                    className="block w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-gray-900"
+                                    className="block w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-gray-100 placeholder-gray-600 transition-all outline-none"
                                     placeholder="••••••••"
                                 />
                             </div>
@@ -118,10 +128,10 @@ const Auth: React.FC = () => {
 
                         {!isLogin && (
                             <div className="space-y-1.5">
-                                <label className="block text-xs font-semibold text-gray-700">Confirm Password</label>
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
-                                        <Lock size={16} />
+                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Confirm Password</label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-indigo-400 transition-colors">
+                                        <Lock size={18} />
                                     </div>
                                     <input
                                         type="password"
@@ -129,7 +139,7 @@ const Auth: React.FC = () => {
                                         required
                                         value={formData.confirmPassword}
                                         onChange={handleChange}
-                                        className="block w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none text-gray-900"
+                                        className="block w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-gray-100 placeholder-gray-600 transition-all outline-none"
                                         placeholder="••••••••"
                                     />
                                 </div>
@@ -137,8 +147,8 @@ const Auth: React.FC = () => {
                         )}
 
                         {error && (
-                            <div className="p-2.5 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100 flex items-start gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 mt-1" />
+                            <div className="p-3 bg-red-500/10 text-red-400 text-sm rounded-xl border border-red-500/20 flex items-center gap-3 animate-pulse">
+                                <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
                                 <span>{error}</span>
                             </div>
                         )}
@@ -146,31 +156,34 @@ const Auth: React.FC = () => {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-2.5 text-sm rounded-lg transition-all duration-200 shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-5"
+                            className="w-full relative group overflow-hidden bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed mt-8"
                         >
-                            {loading ? (
-                                <Loader2 size={18} className="animate-spin" />
-                            ) : (
-                                <>
-                                    {isLogin ? 'Sign In' : 'Create Account'}
-                                    <ArrowRight size={18} />
-                                </>
-                            )}
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                            <div className="relative flex items-center justify-center gap-2">
+                                {loading ? (
+                                    <Loader2 size={20} className="animate-spin" />
+                                ) : (
+                                    <>
+                                        {isLogin ? 'Sign In' : 'Create Account'}
+                                        <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                                    </>
+                                )}
+                            </div>
                         </button>
                     </form>
 
-                    <div className="mt-5 pt-4 border-t border-gray-200 text-center">
-                        <p className="text-gray-600 text-xs">
-                            {isLogin ? "Don't have an account? " : "Already have an account? "}
+                    <div className="mt-8 pt-6 border-t border-gray-800 text-center">
+                        <p className="text-gray-400 text-sm">
+                            {isLogin ? "New to ParkPro? " : "Already a member? "}
                             <button
                                 onClick={() => {
                                     setIsLogin(!isLogin);
                                     setError('');
                                     setFormData({ username: '', password: '', confirmPassword: '' });
                                 }}
-                                className="text-indigo-600 font-bold hover:text-indigo-700 transition-colors hover:underline decoration-2 underline-offset-2"
+                                className="text-indigo-400 font-semibold hover:text-indigo-300 transition-colors hover:underline decoration-2 underline-offset-4"
                             >
-                                {isLogin ? 'Sign up' : 'Log in'}
+                                {isLogin ? 'Create Account' : 'Sign In'}
                             </button>
                         </p>
                     </div>

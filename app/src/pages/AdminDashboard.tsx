@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking } from '../services/api';
-import { Settings, Save, AlertCircle } from 'lucide-react';
+import { Settings, Save, AlertCircle, LayoutGrid, List } from 'lucide-react';
 
 interface Booking {
     id: number;
@@ -50,33 +50,35 @@ const AdminDashboard: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-                    <p className="text-gray-500 mt-1">Manage parking layout and view system status</p>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Admin Dashboard</h1>
+                    <p className="text-gray-400 mt-1">Manage parking layout and view system status</p>
                 </div>
             </header>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="border-b border-gray-100">
-                    <nav className="flex gap-4 px-6">
+            <div className="glass-card rounded-2xl overflow-hidden">
+                <div className="border-b border-white/5">
+                    <nav className="flex gap-1 p-2">
                         <button
                             onClick={() => setActiveTab('layout')}
-                            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'layout'
-                                    ? 'border-indigo-600 text-indigo-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                            className={`flex items-center gap-2 py-3 px-6 rounded-xl font-medium text-sm transition-all duration-300 ${activeTab === 'layout'
+                                ? 'bg-indigo-600/20 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
+                            <LayoutGrid size={18} />
                             Layout Configuration
                         </button>
                         <button
                             onClick={() => setActiveTab('bookings')}
-                            className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${activeTab === 'bookings'
-                                    ? 'border-indigo-600 text-indigo-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                            className={`flex items-center gap-2 py-3 px-6 rounded-xl font-medium text-sm transition-all duration-300 ${activeTab === 'bookings'
+                                ? 'bg-indigo-600/20 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.15)]'
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
                                 }`}
                         >
+                            <List size={18} />
                             All Bookings
                         </button>
                     </nav>
@@ -85,44 +87,44 @@ const AdminDashboard: React.FC = () => {
                 <div className="p-6 md:p-8">
                     {activeTab === 'layout' ? (
                         <div className="max-w-2xl mx-auto">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                            <div className="flex items-center gap-4 mb-8">
+                                <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
                                     <Settings size={24} />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">Parking Grid Dimensions</h3>
-                                    <p className="text-sm text-gray-500">Set the number of rows and columns</p>
+                                    <h3 className="text-lg font-bold text-white">Parking Grid Dimensions</h3>
+                                    <p className="text-sm text-gray-400">Set the number of rows and columns</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6 mb-8">
+                            <div className="grid grid-cols-2 gap-8 mb-8">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Rows</label>
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Rows</label>
                                     <input
                                         type="number"
                                         min="1"
                                         max="20"
                                         value={layout.rows}
                                         onChange={(e) => setLayout({ ...layout, rows: parseInt(e.target.value) || 0 })}
-                                        className="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Columns</label>
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Columns</label>
                                     <input
                                         type="number"
                                         min="1"
                                         max="20"
                                         value={layout.cols}
                                         onChange={(e) => setLayout({ ...layout, cols: parseInt(e.target.value) || 0 })}
-                                        className="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                     />
                                 </div>
                             </div>
 
-                            <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-4 mb-8 flex gap-3">
-                                <AlertCircle className="text-yellow-600 shrink-0" size={20} />
-                                <p className="text-sm text-yellow-700">
+                            <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-4 mb-8 flex gap-3">
+                                <AlertCircle className="text-yellow-500 shrink-0" size={20} />
+                                <p className="text-sm text-yellow-200/80">
                                     Reducing dimensions will permanently delete any parking spots (and associated active bookings) that fall outside the new grid.
                                 </p>
                             </div>
@@ -130,64 +132,64 @@ const AdminDashboard: React.FC = () => {
                             <button
                                 onClick={handleSaveLayout}
                                 disabled={saving}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-colors disabled:opacity-70"
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5 disabled:opacity-70"
                             >
                                 <Save size={20} />
                                 {saving ? 'Saving...' : 'Save Configuration'}
                             </button>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto -mx-6 md:mx-0 md:rounded-xl">
+                        <div className="overflow-x-auto -mx-6 md:mx-0 md:rounded-xl border border-white/5">
                             <table className="w-full text-left border-collapse min-w-full">
                                 <thead>
-                                    <tr className="border-b border-gray-100 text-sm text-gray-500">
-                                        <th className="py-4 px-4 font-medium">Booking ID</th>
-                                        <th className="py-4 px-4 font-medium">Customer</th>
-                                        <th className="py-4 px-4 font-medium">Vehicle</th>
-                                        <th className="py-4 px-4 font-medium">Spot</th>
-                                        <th className="py-4 px-4 font-medium">Time</th>
-                                        <th className="py-4 px-4 font-medium">Status</th>
-                                        <th className="py-4 px-4 font-medium">Amount</th>
+                                    <tr className="border-b border-white/10 text-xs font-medium text-gray-400 uppercase tracking-wider bg-white/5">
+                                        <th className="py-4 px-6">Booking ID</th>
+                                        <th className="py-4 px-6">Customer</th>
+                                        <th className="py-4 px-6">Vehicle</th>
+                                        <th className="py-4 px-6">Spot</th>
+                                        <th className="py-4 px-6">Time</th>
+                                        <th className="py-4 px-6">Status</th>
+                                        <th className="py-4 px-6">Amount</th>
                                     </tr>
                                 </thead>
-                                <tbody className="text-sm text-gray-900">
+                                <tbody className="text-sm text-gray-300 divide-y divide-white/5">
                                     {bookings.map((booking) => (
-                                        <tr key={booking.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                            <td className="py-4 px-4 font-medium">#{booking.id}</td>
-                                            <td className="py-4 px-4">
+                                        <tr key={booking.id} className="hover:bg-white/5 transition-colors">
+                                            <td className="py-4 px-6 font-mono text-indigo-400">#{booking.id}</td>
+                                            <td className="py-4 px-6">
                                                 <div>
-                                                    <p className="font-medium">{booking.name}</p>
+                                                    <p className="font-medium text-white">{booking.name}</p>
                                                     <p className="text-xs text-gray-500">{booking.email}</p>
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-4">
+                                            <td className="py-4 px-6">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="px-2 py-1 bg-gray-100 rounded text-xs font-mono font-medium">
+                                                    <div className="px-2 py-1 bg-gray-800 rounded text-xs font-mono font-medium text-gray-300 border border-gray-700">
                                                         {booking.vehicle.license_plate}
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-4">{booking.spot_info}</td>
-                                            <td className="py-4 px-4">
-                                                <div className="text-xs">
+                                            <td className="py-4 px-6 font-bold text-white">{booking.spot_info}</td>
+                                            <td className="py-4 px-6">
+                                                <div className="text-xs text-gray-400">
                                                     <p>Start: {new Date(booking.start_time).toLocaleString()}</p>
-                                                    <p className="text-gray-500">End: {new Date(booking.end_time).toLocaleString()}</p>
+                                                    <p className="text-gray-600">End: {new Date(booking.end_time).toLocaleString()}</p>
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-4">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
-                          ${booking.status === 'active' ? 'bg-green-100 text-green-800' :
-                                                        booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                                            'bg-gray-100 text-gray-800'}`}>
+                                            <td className="py-4 px-6">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider
+                          ${booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                                        booking.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                                            'bg-gray-700 text-gray-400 border border-gray-600'}`}>
                                                     {booking.status}
                                                 </span>
                                             </td>
-                                            <td className="py-4 px-4 font-medium">${booking.payment_amount}</td>
+                                            <td className="py-4 px-6 font-medium text-white">${booking.payment_amount}</td>
                                         </tr>
                                     ))}
                                     {bookings.length === 0 && (
                                         <tr>
-                                            <td colSpan={7} className="py-8 text-center text-gray-500">
+                                            <td colSpan={7} className="py-12 text-center text-gray-500">
                                                 No bookings found
                                             </td>
                                         </tr>

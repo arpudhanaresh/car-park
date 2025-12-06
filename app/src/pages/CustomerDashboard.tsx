@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parking } from '../services/api';
-import { Calendar, Clock, MapPin, Car, Plus } from 'lucide-react';
+import { Calendar, Clock, MapPin, Car, Plus, Trash2 } from 'lucide-react';
 
 interface Booking {
     id: number;
@@ -47,15 +47,15 @@ const CustomerDashboard: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
-                    <p className="text-gray-500 mt-1">View and manage your parking reservations</p>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">My Bookings</h1>
+                    <p className="text-gray-400 mt-1">View and manage your parking reservations</p>
                 </div>
                 <button
                     onClick={() => navigate('/book')}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-200 hover:scale-105"
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:-translate-y-0.5"
                 >
                     <Plus size={20} />
                     Book New Spot
@@ -63,64 +63,65 @@ const CustomerDashboard: React.FC = () => {
             </header>
 
             {loading ? (
-                <div className="text-center py-12">
-                    <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p className="text-gray-500">Loading your bookings...</p>
+                <div className="text-center py-20">
+                    <div className="animate-spin w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-400">Loading your bookings...</p>
                 </div>
             ) : bookings.length > 0 ? (
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {bookings.map((booking) => (
-                        <div key={booking.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                        <div key={booking.id} className="glass-card rounded-2xl p-6 hover:bg-gray-800/50 transition-all duration-300 group">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20 group-hover:border-indigo-500/40 transition-colors">
                                     <Car size={24} />
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize
-                  ${booking.status === 'active' ? 'bg-green-100 text-green-800' :
-                                        booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                            'bg-gray-100 text-gray-800'}`}>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
+                  ${booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                        booking.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                            'bg-gray-700 text-gray-400 border border-gray-600'}`}>
                                     {booking.status}
                                 </span>
                             </div>
 
-                            <div className="space-y-3 mb-6">
-                                <div className="flex items-center gap-3 text-gray-600">
-                                    <MapPin size={18} className="text-gray-400" />
-                                    <span className="font-medium text-gray-900">{booking.spot_info}</span>
+                            <div className="space-y-4 mb-6">
+                                <div className="flex items-center gap-3 text-gray-300">
+                                    <MapPin size={18} className="text-indigo-400" />
+                                    <span className="font-bold text-lg">{booking.spot_info}</span>
                                 </div>
-                                <div className="flex items-center gap-3 text-gray-600">
-                                    <Calendar size={18} className="text-gray-400" />
+                                <div className="flex items-center gap-3 text-gray-400">
+                                    <Calendar size={18} className="text-gray-500" />
                                     <span className="text-sm">
                                         {new Date(booking.start_time).toLocaleDateString()}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-gray-600">
-                                    <Clock size={18} className="text-gray-400" />
+                                <div className="flex items-center gap-3 text-gray-400">
+                                    <Clock size={18} className="text-gray-500" />
                                     <span className="text-sm">
                                         {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
                                         {new Date(booking.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-gray-600">
-                                    <div className="w-4 h-4 rounded bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">
+                                <div className="flex items-center gap-3 text-gray-400">
+                                    <div className="w-5 h-5 rounded bg-gray-800 border border-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-500">
                                         LP
                                     </div>
-                                    <span className="text-sm font-mono bg-gray-50 px-2 py-0.5 rounded">
+                                    <span className="text-sm font-mono bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50 text-gray-300">
                                         {booking.vehicle.license_plate}
                                     </span>
                                 </div>
                             </div>
 
-                            <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
-                                <span className="font-bold text-lg text-gray-900">
+                            <div className="pt-4 border-t border-white/5 flex justify-between items-center">
+                                <span className="font-bold text-xl text-white text-glow">
                                     ${booking.payment_amount}
                                 </span>
                                 {booking.can_cancel && (
                                     <button
                                         onClick={() => handleCancel(booking.id)}
-                                        className="text-sm text-red-600 hover:text-red-700 font-medium hover:underline"
+                                        className="flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
                                     >
-                                        Cancel Booking
+                                        <Trash2 size={14} />
+                                        Cancel
                                     </button>
                                 )}
                             </div>
@@ -128,15 +129,15 @@ const CustomerDashboard: React.FC = () => {
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 border-dashed">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-                        <Car size={32} />
+                <div className="text-center py-20 glass-card rounded-3xl border-dashed border-2 border-gray-700">
+                    <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-600 border border-gray-700">
+                        <Car size={40} />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No bookings found</h3>
-                    <p className="text-gray-500 mb-6">You haven't made any parking reservations yet.</p>
+                    <h3 className="text-xl font-bold text-white mb-2">No bookings found</h3>
+                    <p className="text-gray-400 mb-8 max-w-md mx-auto">You haven't made any parking reservations yet. Start by booking a spot for your vehicle.</p>
                     <button
                         onClick={() => navigate('/book')}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20"
                     >
                         Book Your First Spot
                     </button>

@@ -1,3 +1,5 @@
+import { Car, Check, Lock } from 'lucide-react';
+
 interface Spot {
     id: number;
     row: number;
@@ -23,48 +25,83 @@ const ParkingLot = ({ cols, spots, onSpotClick, isCustomer, selectedSpot }: Park
     };
 
     return (
-        <div className="w-full overflow-x-auto pb-4 flex justify-center">
+        <div className="w-full flex justify-center">
             <div
-                className="grid gap-4 p-4"
+                className="grid gap-4 p-4 w-full max-w-5xl"
                 style={{
-                    gridTemplateColumns: `repeat(${cols}, minmax(90px, 100px))`
+                    gridTemplateColumns: `repeat(auto-fit, minmax(100px, 1fr))`
                 }}
             >
                 {spots.map((spot) => {
                     const status = getSpotStatus(spot);
-                    let spotColorClass = 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200 hover:scale-105 shadow-sm';
+
+                    // Base styles
+                    let containerClass = 'relative h-32 rounded-2xl border transition-all duration-300 flex flex-col items-center justify-center group overflow-hidden';
+                    let iconClass = 'transition-transform duration-300 group-hover:scale-110';
+                    let textClass = 'font-bold text-lg z-10';
+                    let bgClass = '';
 
                     if (status === 'booked') {
-                        spotColorClass = 'bg-red-100 border-red-300 text-red-700 cursor-not-allowed opacity-80';
+                        containerClass += ' bg-red-900/10 border-red-500/20 cursor-not-allowed opacity-60 grayscale-[0.5]';
+                        iconClass += ' text-red-500/50';
+                        textClass += ' text-red-400/50';
                     } else if (status === 'selected') {
-                        spotColorClass = 'bg-blue-500 border-blue-600 text-white shadow-md scale-105 ring-2 ring-blue-300';
+                        containerClass += ' bg-indigo-600/20 border-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)] scale-105 z-10 ring-1 ring-indigo-400';
+                        iconClass += ' text-indigo-400';
+                        textClass += ' text-indigo-100';
+                    } else {
+                        // Available
+                        containerClass += ' bg-gray-800/40 border-gray-700/50 hover:bg-gray-700/50 hover:border-indigo-500/50 hover:shadow-[0_0_15px_rgba(99,102,241,0.15)] cursor-pointer';
+                        iconClass += ' text-gray-600 group-hover:text-indigo-400';
+                        textClass += ' text-gray-500 group-hover:text-gray-200';
                     }
 
                     return (
                         <div
                             key={`${spot.row}-${spot.col}`}
-                            className={`
-                h-24 rounded-xl border-2 flex flex-col items-center justify-center 
-                cursor-pointer transition-all duration-200 font-bold text-lg relative
-                ${spotColorClass}
-              `}
+                            className={containerClass}
                             onClick={() => {
                                 if (!spot.is_booked && isCustomer) {
                                     onSpotClick(spot.row, spot.col);
                                 }
                             }}
                         >
-                            <span className="text-2xl mb-1">
-                                {status === 'booked' ? '🚗' : status === 'selected' ? '✅' : '🅿️'}
-                            </span>
-                            <span>
+                            {/* Background Glow for Available/Selected */}
+                            {status !== 'booked' && (
+                                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 to-purple-500/0 group-hover:from-indigo-500/10 group-hover:to-purple-500/10 transition-all duration-300" />
+                            )}
+
+                            {/* Status Icon */}
+                            <div className={`mb-2 ${iconClass}`}>
+                                {status === 'booked' ? (
+                                    <Car size={32} />
+                                ) : status === 'selected' ? (
+                                    <Check size={32} className="drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                                ) : (
+                                    <div className="w-8 h-8 rounded-lg border-2 border-dashed border-current opacity-50" />
+                                )}
+                            </div>
+
+                            {/* Spot ID */}
+                            <span className={textClass}>
                                 {String.fromCharCode(65 + spot.row)}{spot.col + 1}
                             </span>
+
+                            {/* Status Label */}
                             {status === 'available' && isCustomer && (
-                                <span className="text-xs font-normal opacity-75 mt-1">Free</span>
+                                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-600 group-hover:text-indigo-400 mt-1 transition-colors">
+                                    Free
+                                </span>
+                            )}
+                            {status === 'booked' && (
+                                <div className="absolute top-2 right-2 text-red-500/50">
+                                    <Lock size={12} />
+                                </div>
                             )}
                             {status === 'booked' && spot.booked_by_username && (
-                                <span className="text-xs font-normal opacity-75 mt-1">{spot.booked_by_username}</span>
+                                <span className="text-[10px] text-red-400/50 mt-1 truncate max-w-[80%] px-1">
+                                    {spot.booked_by_username}
+                                </span>
                             )}
                         </div>
                     );
