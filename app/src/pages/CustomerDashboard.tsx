@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parking } from '../services/api';
-import { Calendar, Clock, MapPin, Car, Plus, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Car, Plus } from 'lucide-react';
 
 interface Booking {
     id: number;
@@ -47,15 +47,15 @@ const CustomerDashboard: React.FC = () => {
     };
 
     return (
-        <div className="space-y-8">
-            <header className="flex justify-between items-center">
+        <div className="space-y-6">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
-                    <p className="text-gray-500">View and manage your parking reservations</p>
+                    <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
+                    <p className="text-gray-500 mt-1">View and manage your parking reservations</p>
                 </div>
                 <button
                     onClick={() => navigate('/book')}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-colors shadow-lg shadow-indigo-200"
+                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-lg shadow-indigo-200 hover:scale-105"
                 >
                     <Plus size={20} />
                     Book New Spot
@@ -68,7 +68,7 @@ const CustomerDashboard: React.FC = () => {
                     <p className="text-gray-500">Loading your bookings...</p>
                 </div>
             ) : bookings.length > 0 ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {bookings.map((booking) => (
                         <div key={booking.id} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="flex justify-between items-start mb-4">

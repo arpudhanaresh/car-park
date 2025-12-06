@@ -137,8 +137,8 @@ const Layout: React.FC = () => {
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-auto p-4 md:p-8 scroll-smooth">
-                    <div className="max-w-7xl mx-auto w-full">
+                <div className="flex-1 overflow-auto p-6 md:p-8 scroll-smooth">
+                    <div className="max-w-7xl mx-auto w-full px-2">
                         <Outlet />
                     </div>
                 </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking } from '../services/api';
-import { Settings, Save, Users, Calendar, AlertCircle } from 'lucide-react';
+import { Settings, Save, AlertCircle } from 'lucide-react';
 
 interface Booking {
     id: number;
@@ -17,7 +17,6 @@ interface Booking {
 const AdminDashboard: React.FC = () => {
     const [layout, setLayout] = useState({ rows: 5, cols: 5 });
     const [bookings, setBookings] = useState<Booking[]>([]);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'layout' | 'bookings'>('layout');
 
@@ -35,8 +34,6 @@ const AdminDashboard: React.FC = () => {
             setBookings(bookingsRes.data);
         } catch (error) {
             console.error("Failed to fetch data", error);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -54,10 +51,10 @@ const AdminDashboard: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <header className="flex justify-between items-center">
+            <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                    <p className="text-gray-500">Manage parking layout and view system status</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+                    <p className="text-gray-500 mt-1">Manage parking layout and view system status</p>
                 </div>
             </header>
 
@@ -85,9 +82,9 @@ const AdminDashboard: React.FC = () => {
                     </nav>
                 </div>
 
-                <div className="p-6">
+                <div className="p-6 md:p-8">
                     {activeTab === 'layout' ? (
-                        <div className="max-w-xl">
+                        <div className="max-w-2xl mx-auto">
                             <div className="flex items-center gap-4 mb-6">
                                 <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
                                     <Settings size={24} />
@@ -140,8 +137,8 @@ const AdminDashboard: React.FC = () => {
                             </button>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                        <div className="overflow-x-auto -mx-6 md:mx-0 md:rounded-xl">
+                            <table className="w-full text-left border-collapse min-w-full">
                                 <thead>
                                     <tr className="border-b border-gray-100 text-sm text-gray-500">
                                         <th className="py-4 px-4 font-medium">Booking ID</th>

@@ -1,4 +1,10 @@
-import type { Spot } from '../services/api';
+interface Spot {
+    id: number;
+    row: number;
+    col: number;
+    is_booked: boolean;
+    booked_by_username?: string;
+}
 
 interface ParkingLotProps {
     rows: number;
@@ -17,11 +23,11 @@ const ParkingLot = ({ cols, spots, onSpotClick, isCustomer, selectedSpot }: Park
     };
 
     return (
-        <div className="w-full overflow-x-auto pb-4">
+        <div className="w-full overflow-x-auto pb-4 flex justify-center">
             <div
-                className="grid gap-4 mx-auto min-w-fit"
+                className="grid gap-4 p-4"
                 style={{
-                    gridTemplateColumns: `repeat(${cols}, minmax(80px, 1fr))`
+                    gridTemplateColumns: `repeat(${cols}, minmax(90px, 100px))`
                 }}
             >
                 {spots.map((spot) => {
