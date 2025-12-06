@@ -15,6 +15,9 @@ const Auth: React.FC = () => {
         username: '',
         password: '',
         confirmPassword: '',
+        full_name: '',
+        email: '',
+        phone: ''
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,8 +36,8 @@ const Auth: React.FC = () => {
                     username: formData.username,
                     password: formData.password,
                 });
-                const { access_token, role, username } = response.data;
-                login(username, role, access_token);
+                const { access_token, role, username, user } = response.data;
+                login(username, role, access_token, user);
                 navigate(role === 'admin' ? '/admin' : '/dashboard');
             } else {
                 if (formData.password !== formData.confirmPassword) {
@@ -46,9 +49,12 @@ const Auth: React.FC = () => {
                     username: formData.username,
                     password: formData.password,
                     role: 'customer',
+                    full_name: formData.full_name,
+                    email: formData.email,
+                    phone: formData.phone
                 });
-                const { access_token, role, username } = response.data;
-                login(username, role, access_token);
+                const { access_token, role, username, user } = response.data;
+                login(username, role, access_token, user);
                 navigate('/dashboard');
             }
         } catch (err: any) {
@@ -90,6 +96,44 @@ const Auth: React.FC = () => {
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {!isLogin && (
+                            <>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Full Name</label>
+                                    <input
+                                        type="text"
+                                        name="full_name"
+                                        value={formData.full_name}
+                                        onChange={handleChange}
+                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-gray-100 placeholder-gray-600 transition-all outline-none"
+                                        placeholder="John Doe"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Email</label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-gray-100 placeholder-gray-600 transition-all outline-none"
+                                        placeholder="john@example.com"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Phone</label>
+                                    <input
+                                        type="tel"
+                                        name="phone"
+                                        value={formData.phone}
+                                        onChange={handleChange}
+                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-gray-100 placeholder-gray-600 transition-all outline-none"
+                                        placeholder="+1 234 567 890"
+                                    />
+                                </div>
+                            </>
+                        )}
+
                         <div className="space-y-1.5">
                             <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider ml-1">Username</label>
                             <div className="relative group">
@@ -179,7 +223,14 @@ const Auth: React.FC = () => {
                                 onClick={() => {
                                     setIsLogin(!isLogin);
                                     setError('');
-                                    setFormData({ username: '', password: '', confirmPassword: '' });
+                                    setFormData({
+                                        username: '',
+                                        password: '',
+                                        confirmPassword: '',
+                                        full_name: '',
+                                        email: '',
+                                        phone: ''
+                                    });
                                 }}
                                 className="text-indigo-400 font-semibold hover:text-indigo-300 transition-colors hover:underline decoration-2 underline-offset-4"
                             >

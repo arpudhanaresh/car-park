@@ -15,6 +15,9 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     hashed_password = Column(String(255))
     role = Column(String(20), default="customer")  # "admin" or "customer"
+    full_name = Column(String(100))
+    email = Column(String(100))
+    phone = Column(String(20))
 
 class ParkingSpot(Base):
     __tablename__ = "parking_spots"
@@ -105,6 +108,17 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: str = "customer"
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    full_name: Optional[str]
+    email: Optional[str]
+    phone: Optional[str]
 
 class UserLogin(BaseModel):
     username: str
@@ -115,6 +129,7 @@ class Token(BaseModel):
     token_type: str
     role: str
     username: str
+    user: Optional[UserResponse] = None
 
 class SpotSchema(BaseModel):
     id: Optional[int] = None
@@ -155,6 +170,9 @@ class VehicleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    class Config:
+        from_attributes = True
+
 class BookingCreate(BaseModel):
     row: int
     col: int
@@ -184,6 +202,9 @@ class BookingResponse(BaseModel):
     refund_amount: float
     created_at: datetime
     can_cancel: bool
+
+    class Config:
+        from_attributes = True
 
 class CancelBookingRequest(BaseModel):
     cancellation_reason: Optional[str] = None

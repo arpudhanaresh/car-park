@@ -34,6 +34,7 @@ export const auth = {
     });
   },
   signup: (data: any) => api.post('/signup', data),
+  getProfile: () => api.get('/users/me'),
 };
 
 export const parking = {

@@ -15,7 +15,8 @@ from dotenv import load_dotenv
 from models import (
     Base, User, ParkingSpot, LayoutConfigDB, Booking, Vehicle, BookingAuditLog,
     UserCreate, Token, ParkingState, LayoutConfig, BookingRequest, SpotSchema,
-    BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest
+    BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
+    UserResponse
 )
 
 # Load env vars
@@ -123,12 +124,35 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
     hashed_password = get_password_hash(user.password)
-    new_user = User(username=user.username, hashed_password=hashed_password, role=user.role)
+    new_user = User(
+        username=user.username, 
+        hashed_password=hashed_password, 
+        role=user.role,
+        full_name=user.full_name,
+        email=user.email,
+        phone=user.phone
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     access_token = create_access_token(data={"sub": new_user.username, "role": new_user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": new_user.role, "username": new_user.username}
+    
+    user_response = UserResponse(
+        id=new_user.id,
+        username=new_user.username,
+        role=new_user.role,
+        full_name=new_user.full_name,
+        email=new_user.email,
+        phone=new_user.phone
+    )
+    
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "role": new_user.role, 
+        "username": new_user.username,
+        "user": user_response
+    }
 
 @app.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -140,7 +164,34 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = create_access_token(data={"sub": user.username, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": user.role, "username": user.username}
+    
+    user_response = UserResponse(
+        id=user.id,
+        username=user.username,
+        role=user.role,
+        full_name=user.full_name,
+        email=user.email,
+        phone=user.phone
+    )
+    
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "role": user.role, 
+        "username": user.username,
+        "user": user_response
+    }
+
+@app.get("/users/me", response_model=UserResponse)
+def get_current_user_profile(current_user: User = Depends(get_current_user)):
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        role=current_user.role,
+        full_name=current_user.full_name,
+        email=current_user.email,
+        phone=current_user.phone
+    )
 
 @app.get("/layout", response_model=ParkingState)
 def get_layout(db: Session = Depends(get_db)):
@@ -368,7 +419,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         name=booking.name,
         email=booking.email,
         phone=booking.phone,
-        vehicle=VehicleResponse(**vehicle.__dict__),
+        vehicle=VehicleResponse.model_validate(vehicle),
         start_time=booking.start_time,
         end_time=booking.end_time,
         payment_method=booking.payment_method,
@@ -401,7 +452,7 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
-            vehicle=VehicleResponse(**booking.vehicle.__dict__),
+            vehicle=VehicleResponse.model_validate(booking.vehicle),
             start_time=booking.start_time,
             end_time=booking.end_time,
             payment_method=booking.payment_method,
@@ -435,7 +486,7 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
-            vehicle=VehicleResponse(**booking.vehicle.__dict__),
+            vehicle=VehicleResponse.model_validate(booking.vehicle),
             start_time=booking.start_time,
             end_time=booking.end_time,
             payment_method=booking.payment_method,

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { parking, vehicles } from '../services/api';
 import { Clock, MapPin, Car, Check, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 
@@ -19,6 +20,7 @@ interface Layout {
 
 const BookingPage: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [layout, setLayout] = useState<Layout | null>(null);
@@ -36,9 +38,9 @@ const BookingPage: React.FC = () => {
 
     const [vehicleData, setVehicleData] = useState({
         license_plate: '',
-        name: '',
-        phone: '',
-        email: '',
+        name: user?.full_name || '',
+        phone: user?.phone || '',
+        email: user?.email || '',
         make: '',
         model: '',
         color: '',
@@ -51,6 +53,18 @@ const BookingPage: React.FC = () => {
         fetchLayout();
         fetchMyVehicles();
     }, []);
+
+    // Update form with user details when available
+    useEffect(() => {
+        if (user) {
+            setVehicleData(prev => ({
+                ...prev,
+                name: prev.name || user.full_name || '',
+                phone: prev.phone || user.phone || '',
+                email: prev.email || user.email || '',
+            }));
+        }
+    }, [user]);
 
     const fetchLayout = async () => {
         try {

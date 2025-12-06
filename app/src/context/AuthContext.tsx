@@ -4,11 +4,14 @@ interface User {
     username: string;
     role: 'admin' | 'customer';
     token: string;
+    full_name?: string;
+    email?: string;
+    phone?: string;
 }
 
 interface AuthContextType {
     user: User | null;
-    login: (username: string, role: 'admin' | 'customer', token: string) => void;
+    login: (username: string, role: 'admin' | 'customer', token: string, userDetails?: any) => void;
     logout: () => void;
     isAuthenticated: boolean;
 }
@@ -25,8 +28,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
 
-    const login = (username: string, role: 'admin' | 'customer', token: string) => {
-        const newUser = { username, role, token };
+    const login = (username: string, role: 'admin' | 'customer', token: string, userDetails?: any) => {
+        const newUser: User = {
+            username,
+            role,
+            token,
+            full_name: userDetails?.full_name,
+            email: userDetails?.email,
+            phone: userDetails?.phone
+        };
         setUser(newUser);
         localStorage.setItem('user', JSON.stringify(newUser));
     };
