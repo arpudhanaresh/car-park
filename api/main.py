@@ -13,8 +13,9 @@ from jose import JWTError, jwt
 from dotenv import load_dotenv
 
 from models import (
-    Base, User, ParkingSpot, LayoutConfigDB,
-    UserCreate, Token, ParkingState, LayoutConfig, BookingRequest, SpotSchema
+    Base, User, ParkingSpot, LayoutConfigDB, Booking, Vehicle, BookingAuditLog,
+    UserCreate, Token, ParkingState, LayoutConfig, BookingRequest, SpotSchema,
+    BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest
 )
 
 # Load env vars
@@ -153,7 +154,16 @@ def get_layout(db: Session = Depends(get_db)):
         for c in range(layout.cols):
             spot = next((s for s in spots_db if s.row == r and s.col == c), None)
             is_booked = spot.is_booked if spot else False
-            spots_out.append(SpotSchema(row=r, col=c, is_booked=is_booked))
+            booked_by_username = None
+            if spot and spot.booked_by:
+                booked_by_username = spot.booked_by.username
+            spots_out.append(SpotSchema(
+                id=spot.id if spot else None,
+                row=r, 
+                col=c, 
+                is_booked=is_booked,
+                booked_by_username=booked_by_username
+            ))
             
     return ParkingState(rows=layout.rows, cols=layout.cols, spots=spots_out)
 
@@ -203,6 +213,281 @@ def book_spot(request: BookingRequest, current_user: User = Depends(get_current_
             
     db.commit()
     return get_layout(db)
+
+@app.get("/vehicles/{license_plate}", response_model=VehicleResponse)
+def get_vehicle_by_license(license_plate: str, db: Session = Depends(get_db)):
+    vehicle = db.query(Vehicle).filter(Vehicle.license_plate == license_plate.upper()).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return vehicle
+
+@app.post("/vehicles", response_model=VehicleResponse)
+def create_or_update_vehicle(vehicle_data: VehicleCreate, db: Session = Depends(get_db)):
+    # Check if vehicle already exists
+    existing_vehicle = db.query(Vehicle).filter(
+        Vehicle.license_plate == vehicle_data.license_plate.upper()
+    ).first()
+    
+    if existing_vehicle:
+        # Update existing vehicle
+        for field, value in vehicle_data.dict(exclude_unset=True).items():
+            if field == "license_plate":
+                value = value.upper()
+            setattr(existing_vehicle, field, value)
+        existing_vehicle.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(existing_vehicle)
+        return existing_vehicle
+    else:
+        # Create new vehicle
+        vehicle_dict = vehicle_data.dict()
+        vehicle_dict["license_plate"] = vehicle_dict["license_plate"].upper()
+        new_vehicle = Vehicle(**vehicle_dict)
+        db.add(new_vehicle)
+        db.commit()
+        db.refresh(new_vehicle)
+        return new_vehicle
+
+def log_booking_audit(db: Session, booking_id: int, user_id: int, action: str, old_status: str = None, new_status: str = None, details: str = None):
+    audit_log = BookingAuditLog(
+        booking_id=booking_id,
+        user_id=user_id,
+        action=action,
+        old_status=old_status,
+        new_status=new_status,
+        details=details
+    )
+    db.add(audit_log)
+
+def calculate_refund_amount(booking: Booking, cancellation_time: datetime) -> tuple[float, str]:
+    hours_before_start = (booking.start_time - cancellation_time).total_seconds() / 3600
+    
+    if hours_before_start >= 24:
+        return float(booking.payment_amount), "100% refund - cancelled more than 24 hours in advance"
+    elif hours_before_start >= 2:
+        refund = float(booking.payment_amount) * 0.5
+        return refund, "50% refund - cancelled within 24 hours"
+    else:
+        return 0, "No refund - cancelled within 2 hours of start time"
+
+@app.post("/bookings", response_model=BookingResponse)
+def create_booking(booking_data: BookingCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from datetime import datetime
+    
+    # Check if spot exists and is available
+    spot = db.query(ParkingSpot).filter(
+        ParkingSpot.row == booking_data.row,
+        ParkingSpot.col == booking_data.col
+    ).first()
+    
+    if spot and spot.is_booked:
+        raise HTTPException(status_code=400, detail="Spot is already booked")
+    
+    # Create spot if it doesn't exist
+    if not spot:
+        spot = ParkingSpot(row=booking_data.row, col=booking_data.col)
+        db.add(spot)
+        db.flush()  # To get the ID
+    
+    # Handle vehicle
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.license_plate == booking_data.license_plate.upper()
+    ).first()
+    
+    if not vehicle:
+        if not booking_data.vehicle_data:
+            # Create basic vehicle record with license plate
+            vehicle = Vehicle(
+                license_plate=booking_data.license_plate.upper(),
+                owner_name=booking_data.name,
+                phone=booking_data.phone,
+                email=booking_data.email
+            )
+        else:
+            # Create vehicle with detailed data
+            vehicle_dict = booking_data.vehicle_data.dict()
+            vehicle_dict["license_plate"] = booking_data.license_plate.upper()
+            vehicle = Vehicle(**vehicle_dict)
+        
+        db.add(vehicle)
+        db.flush()  # To get the ID
+    
+    # Mark spot as booked
+    spot.is_booked = True
+    spot.booked_by_id = current_user.id
+    
+    # Create detailed booking record
+    booking = Booking(
+        user_id=current_user.id,
+        spot_id=spot.id,
+        vehicle_id=vehicle.id,
+        name=booking_data.name,
+        email=booking_data.email,
+        phone=booking_data.phone,
+        start_time=booking_data.start_time,
+        end_time=booking_data.end_time,
+        payment_method=booking_data.payment_method,
+        payment_amount=booking_data.payment_amount,
+        status="active"
+    )
+    
+    db.add(booking)
+    db.flush()  # To get the ID for audit log
+    
+    # Log the booking creation
+    log_booking_audit(
+        db, booking.id, current_user.id, "created", 
+        None, "active", f"Booking created for {vehicle.license_plate}"
+    )
+    
+    db.commit()
+    db.refresh(booking)
+    
+    # Check if booking can be cancelled (configurable business rule)
+    can_cancel = booking.status == "active" and booking.start_time > datetime.utcnow()
+    
+    return BookingResponse(
+        id=booking.id,
+        spot_info=f"Row {spot.row}, Col {spot.col}",
+        name=booking.name,
+        email=booking.email,
+        phone=booking.phone,
+        vehicle=VehicleResponse(**vehicle.__dict__),
+        start_time=booking.start_time,
+        end_time=booking.end_time,
+        payment_method=booking.payment_method,
+        payment_amount=float(booking.payment_amount),
+        status=booking.status,
+        refund_status=booking.refund_status,
+        refund_amount=float(booking.refund_amount),
+        created_at=booking.created_at,
+        can_cancel=can_cancel
+    )
+
+@app.get("/bookings", response_model=List[BookingResponse])
+def get_user_bookings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from datetime import datetime
+    
+    bookings = db.query(Booking).filter(
+        Booking.user_id == current_user.id
+    ).order_by(Booking.created_at.desc()).all()
+    
+    result = []
+    for booking in bookings:
+        can_cancel = (
+            booking.status == "active" and 
+            booking.start_time > datetime.utcnow()
+        )
+        
+        result.append(BookingResponse(
+            id=booking.id,
+            spot_info=f"Row {booking.spot.row}, Col {booking.spot.col}",
+            name=booking.name,
+            email=booking.email,
+            phone=booking.phone,
+            vehicle=VehicleResponse(**booking.vehicle.__dict__),
+            start_time=booking.start_time,
+            end_time=booking.end_time,
+            payment_method=booking.payment_method,
+            payment_amount=float(booking.payment_amount),
+            status=booking.status,
+            refund_status=booking.refund_status,
+            refund_amount=float(booking.refund_amount),
+            created_at=booking.created_at,
+            can_cancel=can_cancel
+        ))
+    
+    return result
+
+@app.get("/admin/bookings", response_model=List[BookingResponse])
+def get_all_bookings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    bookings = db.query(Booking).order_by(Booking.created_at.desc()).all()
+    
+    result = []
+    for booking in bookings:
+        can_cancel = (
+            booking.status == "active" and 
+            booking.start_time > datetime.utcnow()
+        )
+        
+        result.append(BookingResponse(
+            id=booking.id,
+            spot_info=f"Row {booking.spot.row}, Col {booking.spot.col}",
+            name=booking.name,
+            email=booking.email,
+            phone=booking.phone,
+            vehicle=VehicleResponse(**booking.vehicle.__dict__),
+            start_time=booking.start_time,
+            end_time=booking.end_time,
+            payment_method=booking.payment_method,
+            payment_amount=float(booking.payment_amount),
+            status=booking.status,
+            refund_status=booking.refund_status,
+            refund_amount=float(booking.refund_amount),
+            created_at=booking.created_at,
+            can_cancel=can_cancel
+        ))
+    
+    return result
+
+@app.delete("/bookings/{booking_id}")
+def cancel_booking(
+    booking_id: int, 
+    cancel_data: CancelBookingRequest,
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
+    
+    booking = db.query(Booking).filter(
+        Booking.id == booking_id,
+        Booking.user_id == current_user.id
+    ).first()
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking.status != "active":
+        raise HTTPException(status_code=400, detail="Cannot cancel this booking")
+    
+    # Check if booking can be cancelled (before start time)
+    current_time = datetime.utcnow()
+    if booking.start_time <= current_time:
+        raise HTTPException(status_code=400, detail="Cannot cancel booking that has already started")
+    
+    # Calculate refund amount
+    refund_amount, refund_reason = calculate_refund_amount(booking, current_time)
+    
+    # Update booking status
+    old_status = booking.status
+    booking.status = "cancelled"
+    booking.refund_status = "pending" if refund_amount > 0 else "none"
+    booking.refund_amount = refund_amount
+    booking.cancellation_reason = cancel_data.cancellation_reason
+    booking.cancellation_time = current_time
+    
+    # Free up the spot
+    spot = booking.spot
+    spot.is_booked = False
+    spot.booked_by_id = None
+    
+    # Log the cancellation
+    log_booking_audit(
+        db, booking.id, current_user.id, "cancelled",
+        old_status, "cancelled", 
+        f"Cancelled by user. Reason: {cancel_data.cancellation_reason or 'Not provided'}. {refund_reason}"
+    )
+    
+    db.commit()
+    
+    return {
+        "message": "Booking cancelled successfully",
+        "refund_amount": refund_amount,
+        "refund_reason": refund_reason
+    }
 
 if __name__ == "__main__":
     import uvicorn

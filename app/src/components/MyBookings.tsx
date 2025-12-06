@@ -1,59 +1,46 @@
-import React, { useState } from 'react';
-
-interface Booking {
-  id: string;
-  spotInfo: string;
-  name: string;
-  vehicleNumber: string;
-  startDate: string;
-  endDate: string;
-  status: 'active' | 'completed' | 'cancelled';
-  paymentMethod: string;
-  canCancel: boolean;
-}
-
-const mockBookings: Booking[] = [
-  {
-    id: '1',
-    spotInfo: 'Row 2, Col 3',
-    name: 'John Doe',
-    vehicleNumber: 'ABC 1234',
-    startDate: '2025-12-01T09:00',
-    endDate: '2025-12-01T17:00',
-    status: 'active',
-    paymentMethod: 'RinggitPay',
-    canCancel: true
-  },
-  {
-    id: '2',
-    spotInfo: 'Row 1, Col 5',
-    name: 'John Doe',
-    vehicleNumber: 'ABC 1234',
-    startDate: '2025-11-25T10:00',
-    endDate: '2025-11-25T15:00',
-    status: 'completed',
-    paymentMethod: 'RinggitPay',
-    canCancel: false
-  }
-];
+import React, { useState, useEffect } from 'react';
+import { getUserBookings, cancelBooking, type BookingResponse } from '../services/api';
 
 const MyBookings: React.FC = () => {
-  const [bookings] = useState<Booking[]>(mockBookings);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [bookings, setBookings] = useState<BookingResponse[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<BookingResponse | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleCancelClick = (booking: Booking) => {
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const fetchBookings = async () => {
+    try {
+      const data = await getUserBookings();
+      setBookings(data);
+    } catch (error) {
+      console.error('Failed to fetch bookings:', error);
+    }
+  };
+
+  const handleCancelClick = (booking: BookingResponse) => {
     setSelectedBooking(booking);
     setShowCancelModal(true);
   };
 
-  const handleCancelConfirm = () => {
-    if (selectedBooking) {
-      alert(`Booking ${selectedBooking.id} cancelled. Reason: ${cancelReason}`);
+  const handleCancelConfirm = async () => {
+    if (!selectedBooking) return;
+    
+    try {
+      setIsProcessing(true);
+      await cancelBooking(selectedBooking.id);
+      await fetchBookings(); // Refresh the bookings list
       setShowCancelModal(false);
-      setCancelReason('');
       setSelectedBooking(null);
+      setCancelReason('');
+    } catch (error: any) {
+      console.error('Failed to cancel booking:', error);
+      // You might want to show an error toast here
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -110,7 +97,7 @@ const MyBookings: React.FC = () => {
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">🅿️</span>
-                <span className="font-semibold text-gray-900">{booking.spotInfo}</span>
+                <span className="font-semibold text-gray-900">{booking.spot_info}</span>
               </div>
               {getStatusBadge(booking.status)}
             </div>
@@ -129,7 +116,7 @@ const MyBookings: React.FC = () => {
                   <span className="text-xl mt-1">🚗</span>
                   <div>
                     <div className="text-xs font-medium text-gray-500 uppercase">Vehicle</div>
-                    <div className="font-medium text-gray-900">{booking.vehicleNumber}</div>
+                    <div className="font-medium text-gray-900">{booking.vehicle.license_plate}</div>
                   </div>
                 </div>
 
@@ -137,7 +124,7 @@ const MyBookings: React.FC = () => {
                   <span className="text-xl mt-1">💳</span>
                   <div>
                     <div className="text-xs font-medium text-gray-500 uppercase">Payment</div>
-                    <div className="font-medium text-gray-900">{booking.paymentMethod}</div>
+                    <div className="font-medium text-gray-900">{booking.payment_method}</div>
                   </div>
                 </div>
 
@@ -145,7 +132,7 @@ const MyBookings: React.FC = () => {
                   <span className="text-xl mt-1">📅</span>
                   <div>
                     <div className="text-xs font-medium text-gray-500 uppercase">Start</div>
-                    <div className="font-medium text-gray-900">{formatDateTime(booking.startDate)}</div>
+                    <div className="font-medium text-gray-900">{formatDateTime(booking.start_time)}</div>
                   </div>
                 </div>
 
@@ -153,13 +140,13 @@ const MyBookings: React.FC = () => {
                   <span className="text-xl mt-1">🏁</span>
                   <div>
                     <div className="text-xs font-medium text-gray-500 uppercase">End</div>
-                    <div className="font-medium text-gray-900">{formatDateTime(booking.endDate)}</div>
+                    <div className="font-medium text-gray-900">{formatDateTime(booking.end_time)}</div>
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end border-t border-gray-100 pt-4">
-                {booking.canCancel && booking.status === 'active' && (
+                {booking.can_cancel && booking.status === 'active' && (
                   <button
                     className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-medium transition-colors flex items-center gap-2"
                     onClick={() => handleCancelClick(booking)}
@@ -167,7 +154,7 @@ const MyBookings: React.FC = () => {
                     <span>❌</span> Cancel Booking
                   </button>
                 )}
-                {!booking.canCancel && booking.status === 'active' && (
+                {!booking.can_cancel && booking.status === 'active' && (
                   <div className="text-sm text-yellow-600 bg-yellow-50 px-3 py-2 rounded-lg flex items-center gap-2">
                     <span>⚠️</span> Cannot cancel within 2 hours of start time
                   </div>
@@ -208,8 +195,8 @@ const MyBookings: React.FC = () => {
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 text-sm">
-                <p className="mb-1"><strong className="text-gray-700">Booking:</strong> {selectedBooking.spotInfo}</p>
-                <p><strong className="text-gray-700">Date:</strong> {formatDateTime(selectedBooking.startDate)}</p>
+                <p className="mb-1"><strong className="text-gray-700">Booking:</strong> {selectedBooking.spot_info}</p>
+                <p><strong className="text-gray-700">Date:</strong> {formatDateTime(selectedBooking.start_time)}</p>
               </div>
 
               <div>
@@ -221,16 +208,32 @@ const MyBookings: React.FC = () => {
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="Let us know why you're cancelling..."
                   rows={4}
+                  disabled={isProcessing}
                 />
               </div>
             </div>
 
             <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 border-t border-gray-100">
-              <button className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 font-medium transition-colors" onClick={() => setShowCancelModal(false)}>
+              <button 
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                onClick={() => setShowCancelModal(false)}
+                disabled={isProcessing}
+              >
                 Keep Booking
               </button>
-              <button className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 font-medium transition-colors shadow-sm" onClick={handleCancelConfirm}>
-                Confirm Cancellation
+              <button 
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 font-medium transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" 
+                onClick={handleCancelConfirm}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    Processing...
+                  </>
+                ) : (
+                  'Confirm Cancellation'
+                )}
               </button>
             </div>
           </div>

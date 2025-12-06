@@ -9,7 +9,7 @@ interface ParkingLotProps {
     selectedSpot?: { row: number; col: number } | null;
 }
 
-const ParkingLot = ({ rows, cols, spots, onSpotClick, isCustomer, selectedSpot }: ParkingLotProps) => {
+const ParkingLot = ({ cols, spots, onSpotClick, isCustomer, selectedSpot }: ParkingLotProps) => {
     const getSpotStatus = (spot: Spot) => {
         if (spot.is_booked) return 'booked';
         if (selectedSpot && selectedSpot.row === spot.row && selectedSpot.col === spot.col) return 'selected';
@@ -56,6 +56,9 @@ const ParkingLot = ({ rows, cols, spots, onSpotClick, isCustomer, selectedSpot }
                             </span>
                             {status === 'available' && isCustomer && (
                                 <span className="text-xs font-normal opacity-75 mt-1">Free</span>
+                            )}
+                            {status === 'booked' && spot.booked_by_username && (
+                                <span className="text-xs font-normal opacity-75 mt-1">{spot.booked_by_username}</span>
                             )}
                         </div>
                     );
