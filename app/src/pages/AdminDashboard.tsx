@@ -62,6 +62,35 @@ const AdminDashboard: React.FC = () => {
     const [showPromoModal, setShowPromoModal] = useState(false);
     const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
 
+    // Dialog State
+    const [dialog, setDialog] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        type: 'confirm' | 'alert' | 'error';
+        onConfirm?: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        type: 'alert'
+    });
+
+    const showDialog = (title: string, message: string, type: 'confirm' | 'alert' | 'error' = 'alert', onConfirm?: () => void) => {
+        setDialog({ isOpen: true, title, message, type, onConfirm });
+    };
+
+    const closeDialog = () => {
+        setDialog(prev => ({ ...prev, isOpen: false }));
+    };
+
+    const handleConfirm = () => {
+        if (dialog.onConfirm) {
+            dialog.onConfirm();
+        }
+        closeDialog();
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -89,20 +118,22 @@ const AdminDashboard: React.FC = () => {
     const handleSaveLayout = async () => {
         try {
             await parking.updateLayout(layout);
-            alert("Layout updated!");
+            showDialog("Success", "Parking layout updated successfully!", "alert");
             fetchData();
         } catch (error) {
             console.error("Failed to update layout", error);
+            showDialog("Error", "Failed to update layout", "error");
         }
     };
 
     const handleSaveConfig = async () => {
         try {
             await admin.updateConfig({ configs });
-            alert("Settings updated!");
+            showDialog("Success", "System configuration updated!", "alert");
             fetchData();
         } catch (error) {
             console.error("Failed to update config", error);
+            showDialog("Error", "Failed to update configuration", "error");
         }
     };
 
@@ -111,10 +142,10 @@ const AdminDashboard: React.FC = () => {
         try {
             if (editingPromoId) {
                 await admin.updatePromo(editingPromoId, newPromo);
-                alert("Promo updated successfully!");
+                showDialog("Success", "Promo code updated successfully!", "alert");
             } else {
                 await admin.createPromo(newPromo);
-                alert("Promo created successfully!");
+                showDialog("Success", "Promo code created successfully!", "alert");
             }
             setShowPromoModal(false);
             setEditingPromoId(null);
@@ -128,20 +159,28 @@ const AdminDashboard: React.FC = () => {
             });
             fetchData();
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Failed to save promo");
+            showDialog("Error", error.response?.data?.detail || "Failed to save promo", "error");
         }
     };
 
-    const handleDeletePromo = async (id: number) => {
-        if (!window.confirm("Are you sure you want to delete this promo code?")) return;
-        try {
-            await admin.deletePromo(id);
-            fetchData();
-        } catch (error) {
-            console.error("Failed to delete promo", error);
-            alert("Failed to delete promo");
-        }
+    const handleDeletePromo = (id: number) => {
+        showDialog(
+            "Delete Promo Code",
+            "Are you sure you want to delete this promo code? This action cannot be undone.",
+            "confirm",
+            async () => {
+                try {
+                    await admin.deletePromo(id);
+                    showDialog("Success", "Promo code deleted successfully", "alert");
+                    fetchData();
+                } catch (error) {
+                    console.error("Failed to delete promo", error);
+                    showDialog("Error", "Failed to delete promo code", "error");
+                }
+            }
+        );
     };
+
 
     const handleTogglePromo = async (id: number) => {
         try {
@@ -149,6 +188,7 @@ const AdminDashboard: React.FC = () => {
             fetchData();
         } catch (error) {
             console.error("Failed to toggle promo", error);
+            showDialog("Error", "Failed to toggle promo status", "error");
         }
     };
 
@@ -474,7 +514,40 @@ const AdminDashboard: React.FC = () => {
                     )}
                 </div>
             </div>
+            {/* Custom Dialog */}
+            {dialog.isOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-sm p-6 relative shadow-xl transform transition-all scale-100">
+                        <h3 className={`text-xl font-bold mb-2 ${dialog.type === 'error' ? 'text-red-500' : 'text-white'}`}>
+                            {dialog.title}
+                        </h3>
+                        <p className="text-gray-300 mb-6">
+                            {dialog.message}
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            {dialog.type === 'confirm' && (
+                                <button
+                                    onClick={closeDialog}
+                                    className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                            <button
+                                onClick={handleConfirm}
+                                className={`px-6 py-2 rounded-lg font-bold text-white transition-colors ${dialog.type === 'error' ? 'bg-red-600 hover:bg-red-500' :
+                                    dialog.type === 'confirm' ? 'bg-indigo-600 hover:bg-indigo-500' :
+                                        'bg-indigo-600 hover:bg-indigo-500'
+                                    }`}
+                            >
+                                {dialog.type === 'confirm' ? 'Confirm' : 'OK'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
+
     );
 };
 
