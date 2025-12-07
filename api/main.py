@@ -549,6 +549,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     
     return BookingResponse(
         id=booking.id,
+        booking_uuid=booking.booking_uuid,
         spot_info=format_spot_id(spot.row, spot.col),
         name=booking.name,
         email=booking.email,
@@ -584,6 +585,7 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
         
         result.append(BookingResponse(
             id=booking.id,
+            booking_uuid=booking.booking_uuid,
             spot_info=format_spot_id(booking.spot.row, booking.spot.col),
             name=booking.name,
             email=booking.email,

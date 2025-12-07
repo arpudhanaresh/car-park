@@ -144,18 +144,18 @@ const CustomerDashboard: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-                                <span className="font-bold text-xl text-white text-glow">
+                            <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <span className="font-bold text-xl text-white text-glow whitespace-nowrap">
                                     RM {booking.payment_amount}
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                     {booking.status === 'active' && (
                                         <button
                                             onClick={() => {
                                                 setQrBooking(booking);
                                                 setShowQRModal(true);
                                             }}
-                                            className="flex items-center gap-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/20"
+                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/20"
                                         >
                                             <QrCode size={14} />
                                             Show QR
@@ -164,10 +164,11 @@ const CustomerDashboard: React.FC = () => {
                                     {booking.can_cancel && (
                                         <button
                                             onClick={() => handleCancelClick(booking.id)}
-                                            className="flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
+                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
                                         >
                                             <Trash2 size={14} />
-                                            Cancel <span className="opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
+                                            Cancel <span className="hidden sm:inline opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
+                                            <span className="sm:hidden opacity-50 ml-1 text-[10px]">(Fee)</span>
                                         </button>
                                     )}
                                 </div>
@@ -263,9 +264,9 @@ const CustomerDashboard: React.FC = () => {
                             </div>
 
                             <div className="mt-8 space-y-2">
-                                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">Booking ID</div>
-                                <div className="font-mono text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 inline-block select-all">
-                                    {(qrBooking.booking_uuid || `BK-${qrBooking.id}`).substring(0, 18)}...
+                                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">Booking UUID</div>
+                                <div className="font-mono text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100 inline-block select-all break-all max-w-full">
+                                    {qrBooking.booking_uuid || `BK-${qrBooking.id}`}
                                 </div>
                             </div>
                         </div>
