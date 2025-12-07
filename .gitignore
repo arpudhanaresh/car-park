@@ -25,3 +25,16 @@ coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Capacitor
+app/capacitor.config.json.timestamp
+app/capacitor.config.ts.timestamp
+app/capacitor.config.js.timestamp
+
+# Android
+app/android/app/build/
+app/android/.gradle/
+app/android/local.properties
+app/android/captures/
+app/android/.idea/
+app/android/app/src/main/assets/

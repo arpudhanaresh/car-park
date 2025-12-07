@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, ToggleLeft, ToggleRight, Trash2, X, PieChart } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Booking {
     id: number;
@@ -36,7 +36,7 @@ interface ConfigItem {
 
 const AdminDashboard: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'layout' | 'bookings' | 'analytics' | 'promos' | 'settings'>('layout');
-    const [loading, setLoading] = useState(false);
+
 
     // Data States
     const [layout, setLayout] = useState({ rows: 5, cols: 5 });
@@ -114,7 +114,7 @@ const AdminDashboard: React.FC = () => {
     };
 
     const fetchData = async () => {
-        setLoading(true);
+
         try {
             const [layoutRes, bookingsRes, promosRes, configsRes, analyticsRes] = await Promise.all([
                 parking.getLayout(),
@@ -132,8 +132,6 @@ const AdminDashboard: React.FC = () => {
             setAnalytics(analyticsRes.data);
         } catch (error) {
             console.error("Failed to fetch data", error);
-        } finally {
-            setLoading(false);
         }
     };
 

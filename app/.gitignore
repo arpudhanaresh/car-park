@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Capacitor
+capacitor.config.json.timestamp
+capacitor.config.ts.timestamp
+capacitor.config.js.timestamp
+
+# Android
+android/app/build/
+android/.gradle/
+android/local.properties
+android/captures/
+android/.idea/
+android/app/src/main/assets/

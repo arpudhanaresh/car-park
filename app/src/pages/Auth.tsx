@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../services/api';
-import { Car, Lock, User, ArrowRight, Loader2, Sparkles } from 'lucide-react';
+import { Car, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 
 const Auth: React.FC = () => {
     const [isLogin, setIsLogin] = useState(true);

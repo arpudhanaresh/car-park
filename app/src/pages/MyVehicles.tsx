@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { vehicles } from '../services/api';
-import { Car, Plus, Edit2, Trash2, X, Save } from 'lucide-react';
+import { Car, Plus, Edit2, X } from 'lucide-react';
 
 interface Vehicle {
     id: number;
