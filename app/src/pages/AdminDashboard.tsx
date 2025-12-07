@@ -12,6 +12,7 @@ interface Booking {
     status: string;
     payment_amount: number;
     email: string;
+    excess_fee: number;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -150,6 +151,7 @@ const AdminDashboard: React.FC = () => {
                                         <th className="py-4 px-6">Time</th>
                                         <th className="py-4 px-6">Status</th>
                                         <th className="py-4 px-6">Amount</th>
+                                        <th className="py-4 px-6">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm text-gray-300 divide-y divide-white/5">
@@ -185,11 +187,36 @@ const AdminDashboard: React.FC = () => {
                                                 </span>
                                             </td>
                                             <td className="py-4 px-6 font-medium text-white">${booking.payment_amount}</td>
+                                            <td className="py-4 px-6">
+                                                {booking.status === 'active' && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (window.confirm("Are you sure you want to close this booking?")) {
+                                                                try {
+                                                                    const res = await parking.closeBooking(booking.id);
+                                                                    const updatedBooking = res.data;
+                                                                    if (updatedBooking.excess_fee > 0) {
+                                                                        alert(`Booking Closed. Excess Fee Applied: RM ${updatedBooking.excess_fee}`);
+                                                                    } else {
+                                                                        alert("Booking Closed Successfully.");
+                                                                    }
+                                                                    fetchData();
+                                                                } catch (err: any) {
+                                                                    alert(err.response?.data?.detail || "Failed to close booking");
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg transition-colors border border-indigo-500/50 shadow-lg shadow-indigo-500/20"
+                                                    >
+                                                        Close
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                     {bookings.length === 0 && (
                                         <tr>
-                                            <td colSpan={7} className="py-12 text-center text-gray-500">
+                                            <td colSpan={8} className="py-12 text-center text-gray-500">
                                                 No bookings found
                                             </td>
                                         </tr>

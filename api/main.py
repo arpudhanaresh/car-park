@@ -555,8 +555,8 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         email=booking.email,
         phone=booking.phone,
         vehicle=VehicleResponse.model_validate(vehicle),
-        start_time=booking.start_time,
-        end_time=booking.end_time,
+        start_time=booking.start_time.replace(tzinfo=timezone.utc),
+        end_time=booking.end_time.replace(tzinfo=timezone.utc),
         payment_method=booking.payment_method,
         payment_amount=float(booking.payment_amount),
         discount_amount=float(booking.discount_amount),
@@ -564,13 +564,13 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         status=booking.status,
         refund_status=booking.refund_status,
         refund_amount=float(booking.refund_amount),
-        created_at=booking.created_at,
+        created_at=booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None,
         can_cancel=can_cancel
     )
 
 @app.get("/bookings", response_model=List[BookingResponse])
 def get_user_bookings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    from datetime import datetime
+    from datetime import datetime, timezone
     
     bookings = db.query(Booking).filter(
         Booking.user_id == current_user.id
@@ -583,6 +583,12 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             booking.start_time > datetime.utcnow()
         )
         
+        # Ensure times are sent as UTC (ISO string with Z)
+        # DB stores naive UTC, so we must attach UTC tzinfo
+        response_start = booking.start_time.replace(tzinfo=timezone.utc)
+        response_end = booking.end_time.replace(tzinfo=timezone.utc)
+        response_created = booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None
+        
         result.append(BookingResponse(
             id=booking.id,
             booking_uuid=booking.booking_uuid,
@@ -591,8 +597,8 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             email=booking.email,
             phone=booking.phone,
             vehicle=VehicleResponse.model_validate(booking.vehicle),
-            start_time=booking.start_time,
-            end_time=booking.end_time,
+            start_time=response_start,
+            end_time=response_end,
             payment_method=booking.payment_method,
             payment_amount=float(booking.payment_amount),
             discount_amount=float(booking.discount_amount),
@@ -600,16 +606,80 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             status=booking.status,
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),
-            created_at=booking.created_at,
+            created_at=response_created,
             can_cancel=can_cancel
         ))
     
     return result
 
+
+
+@app.post("/admin/bookings/{booking_id}/close", response_model=BookingResponse)
+def close_booking(booking_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    if booking.status != "active":
+        raise HTTPException(status_code=400, detail=f"Booking is {booking.status}, cannot close.")
+
+    from datetime import datetime, timezone
+    now = datetime.utcnow()
+    
+    excess_fee = 0.0
+    if now > booking.end_time:
+        duration_over = (now - booking.end_time).total_seconds() / 3600
+        import math
+        hours_over = math.ceil(duration_over)
+        excess_fee = float(hours_over * 10.0)
+    
+    booking.status = "completed"
+    booking.excess_fee = excess_fee
+    
+    db.commit()
+    db.refresh(booking)
+    
+    # Log it
+    log_booking_audit(
+        db, booking.id, current_user.id, "completed", 
+        "active", "completed", f"Admin closed booking. Excess Fee: {excess_fee}"
+    )
+
+    response_start = booking.start_time.replace(tzinfo=timezone.utc)
+    response_end = booking.end_time.replace(tzinfo=timezone.utc)
+    response_created = booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None
+
+    return BookingResponse(
+        id=booking.id,
+        booking_uuid=booking.booking_uuid,
+        spot_info=format_spot_id(booking.spot.row, booking.spot.col),
+        name=booking.name,
+        email=booking.email,
+        phone=booking.phone,
+        vehicle=VehicleResponse.model_validate(booking.vehicle),
+        start_time=response_start,
+        end_time=response_end,
+        payment_method=booking.payment_method,
+        payment_amount=float(booking.payment_amount),
+        discount_amount=float(booking.discount_amount),
+        promo_code=booking.promo_code.code if booking.promo_code else None,
+        status=booking.status,
+        refund_status=booking.refund_status,
+        refund_amount=float(booking.refund_amount),
+        excess_fee=float(booking.excess_fee),
+        created_at=response_created,
+        can_cancel=False
+    )
+
 @app.get("/admin/bookings", response_model=List[BookingResponse])
 def get_all_bookings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
+    
+    from datetime import datetime, timezone
         
     bookings = db.query(Booking).order_by(Booking.created_at.desc()).all()
     
@@ -620,15 +690,21 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             booking.start_time > datetime.utcnow()
         )
         
+        # Ensure times are sent as UTC
+        response_start = booking.start_time.replace(tzinfo=timezone.utc)
+        response_end = booking.end_time.replace(tzinfo=timezone.utc)
+        response_created = booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None
+        
         result.append(BookingResponse(
             id=booking.id,
+            booking_uuid=booking.booking_uuid,
             spot_info=format_spot_id(booking.spot.row, booking.spot.col),
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
             vehicle=VehicleResponse.model_validate(booking.vehicle),
-            start_time=booking.start_time,
-            end_time=booking.end_time,
+            start_time=response_start,
+            end_time=response_end,
             payment_method=booking.payment_method,
             payment_amount=float(booking.payment_amount),
             discount_amount=float(booking.discount_amount),
@@ -636,7 +712,8 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             status=booking.status,
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),
-            created_at=booking.created_at,
+            excess_fee=float(booking.excess_fee) if booking.excess_fee else 0.0,
+            created_at=response_created,
             can_cancel=can_cancel
         ))
     
