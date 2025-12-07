@@ -84,9 +84,21 @@ const BookingPage: React.FC = () => {
 
     // Fetch layout and vehicles on mount
     useEffect(() => {
-        fetchLayout();
+        // fetchLayout(); // Don't fetch layout immediately, wait for time selection
         fetchMyVehicles();
     }, []);
+
+    // Fetch layout when entering step 2 with selected times
+    useEffect(() => {
+        if (step === 2) {
+            const start = new Date(`${date}T${startTime}`);
+            const end = new Date(`${endDate}T${endTime}`);
+            // Safety check
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                fetchLayout(start.toISOString(), end.toISOString());
+            }
+        }
+    }, [step, date, startTime, endDate, endTime]);
 
     // Update form with user details when available
     useEffect(() => {
@@ -100,9 +112,9 @@ const BookingPage: React.FC = () => {
         }
     }, [user]);
 
-    const fetchLayout = async () => {
+    const fetchLayout = async (start?: string, end?: string) => {
         try {
-            const response = await parking.getLayout();
+            const response = await parking.getLayout(start, end);
             setLayout(response.data);
         } catch (error) {
             console.error("Failed to fetch layout", error);
@@ -127,9 +139,9 @@ const BookingPage: React.FC = () => {
             setVehicleData(prev => ({
                 ...prev,
                 license_plate: vehicle.license_plate,
-                name: vehicle.owner_name,
-                phone: vehicle.phone || prev.phone,
-                email: vehicle.email || prev.email,
+                // Do not overwrite contact info (name, phone, email) with vehicle owner info
+                // This resolves issue where name becomes empty if vehicle.owner_name is missing
+                // and keeps the booking under the logged-in user's name.
                 make: vehicle.make || prev.make,
                 model: vehicle.model || prev.model,
                 color: vehicle.color || prev.color,
@@ -288,7 +300,7 @@ const BookingPage: React.FC = () => {
                             {/* Start */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-wider">Start</h3>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="block text-xs font-medium text-gray-400">Date</label>
                                         <input
@@ -318,7 +330,7 @@ const BookingPage: React.FC = () => {
                             {/* End */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-wider">End</h3>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="block text-xs font-medium text-gray-400">Date</label>
                                         <input

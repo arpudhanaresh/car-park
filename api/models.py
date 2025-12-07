@@ -75,6 +75,7 @@ class Booking(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     spot_id = Column(Integer, ForeignKey("parking_spots.id"), nullable=False)
     vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
+    booking_uuid = Column(String(36), unique=True, index=True) # UUID for QR code
     name = Column(String(100), nullable=False)
     email = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=False)
@@ -212,6 +213,7 @@ class BookingCreate(BaseModel):
 
 class BookingResponse(BaseModel):
     id: int
+    booking_uuid: Optional[str] = None # UUID for QR code
     spot_info: str
     name: str
     email: str

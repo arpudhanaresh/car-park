@@ -200,19 +200,43 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
     )
 
 @app.get("/layout", response_model=ParkingState)
-def get_layout(db: Session = Depends(get_db)):
+def get_layout(
+    start_time: str = None, 
+    end_time: str = None, 
+    db: Session = Depends(get_db)
+):
     layout = db.query(LayoutConfigDB).first()
     if not layout:
         layout = LayoutConfigDB(rows=5, cols=5) # Fallback
     
-    # PRODUCTION READY: Check for logic real-time occupancy
-    # A spot is booked if there is an ACTIVE booking covering the CURRENT time
-    current_time = datetime.utcnow()
+    # Check occupancy based on specific time range if provided, else current time (now)
+    # If checking a future slot, we want to know what is booked THEN.
+    from datetime import timezone
     
+    check_start = datetime.utcnow()
+    check_end = datetime.utcnow()
+    
+    if start_time and end_time:
+        try:
+            # Parse ISO strings (likely with Z or offset)
+            # Normalize to naive UTC as stored in DB
+            s_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            e_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+            
+            if s_dt.tzinfo:
+                s_dt = s_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            if e_dt.tzinfo:
+                e_dt = e_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                
+            check_start = s_dt
+            check_end = e_dt
+        except ValueError:
+            pass # Fallback to now if parse fails
+            
     occupied_spot_ids = db.query(Booking.spot_id).filter(
         Booking.status == 'active',
-        Booking.start_time <= current_time,
-        Booking.end_time > current_time
+        Booking.start_time < check_end, # Overlap logic: booking starts before window ends
+        Booking.end_time > check_start  # AND booking ends after window starts
     ).all()
     
     # Flatten list of tuples [(1,), (2,)] -> {1, 2}
@@ -488,10 +512,14 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
                 promo.current_uses += 1
                 
     # Create detailed booking record
+    import uuid
+    new_booking_uuid = str(uuid.uuid4())
+    
     booking = Booking(
         user_id=current_user.id,
         spot_id=spot.id,
         vehicle_id=vehicle.id,
+        booking_uuid=new_booking_uuid,
         name=booking_data.name,
         email=booking_data.email,
         phone=booking_data.phone,

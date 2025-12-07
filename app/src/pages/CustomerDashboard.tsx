@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { parking } from '../services/api';
 import { Calendar, Clock, MapPin, Car, Plus, Trash2 } from 'lucide-react';
 
+import QRCode from 'react-qr-code';
+import { QrCode, X } from 'lucide-react';
+
 interface Booking {
     id: number;
+    booking_uuid?: string;
     spot_info: string;
     name: string;
     vehicle: { license_plate: string; make?: string; model?: string };
@@ -21,6 +25,8 @@ const CustomerDashboard: React.FC = () => {
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
     const [cancellationReason, setCancellationReason] = useState('');
+    const [showQRModal, setShowQRModal] = useState(false);
+    const [qrBooking, setQrBooking] = useState<Booking | null>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -142,15 +148,29 @@ const CustomerDashboard: React.FC = () => {
                                 <span className="font-bold text-xl text-white text-glow">
                                     RM {booking.payment_amount}
                                 </span>
-                                {booking.can_cancel && (
-                                    <button
-                                        onClick={() => handleCancelClick(booking.id)}
-                                        className="flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
-                                    >
-                                        <Trash2 size={14} />
-                                        Cancel <span className="opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
-                                    </button>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    {booking.status === 'active' && (
+                                        <button
+                                            onClick={() => {
+                                                setQrBooking(booking);
+                                                setShowQRModal(true);
+                                            }}
+                                            className="flex items-center gap-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/20"
+                                        >
+                                            <QrCode size={14} />
+                                            Show QR
+                                        </button>
+                                    )}
+                                    {booking.can_cancel && (
+                                        <button
+                                            onClick={() => handleCancelClick(booking.id)}
+                                            className="flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
+                                        >
+                                            <Trash2 size={14} />
+                                            Cancel <span className="opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -217,6 +237,36 @@ const CustomerDashboard: React.FC = () => {
                                 >
                                     Confirm Cancel
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* QR Code Modal */}
+            {showQRModal && qrBooking && (
+                <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 backdrop-blur-md">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full relative transform transition-all scale-100 shadow-[0_0_50px_rgba(255,255,255,0.2)]">
+                        <button
+                            onClick={() => setShowQRModal(false)}
+                            className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div className="text-center">
+                            <h3 className="text-2xl font-bold text-gray-900 mb-1">Scan for Entry</h3>
+                            <p className="text-gray-500 text-sm mb-8">Present this QR code at the gate</p>
+
+                            <div className="bg-white p-4 rounded-xl border-2 border-gray-100 inline-block shadow-sm">
+                                <QRCode value={qrBooking.booking_uuid || qrBooking.id.toString()} size={200} />
+                            </div>
+
+                            <div className="mt-8 space-y-2">
+                                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">Booking ID</div>
+                                <div className="font-mono text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 inline-block select-all">
+                                    {(qrBooking.booking_uuid || `BK-${qrBooking.id}`).substring(0, 18)}...
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -38,7 +38,13 @@ export const auth = {
 };
 
 export const parking = {
-  getLayout: () => api.get('/layout'),
+  getLayout: (start?: string, end?: string) => {
+    let url = `/layout`;
+    if (start && end) {
+        url += `?start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`;
+    }
+    return api.get(url);
+  },
   updateLayout: (data: any) => api.post('/admin/layout', data),
   bookSpot: (data: any) => api.post('/book', data),
   createBooking: (data: any) => api.post('/bookings', data),
