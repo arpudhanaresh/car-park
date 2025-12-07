@@ -123,11 +123,51 @@ const BookingPage: React.FC = () => {
         }
     };
 
+    const [promoCode, setPromoCode] = useState('');
+    const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number; type: string } | null>(null);
+    const [promoError, setPromoError] = useState('');
+    const [promoLoading, setPromoLoading] = useState(false);
+
+    const handleApplyPromo = async () => {
+        if (!promoCode) return;
+        setPromoLoading(true);
+        setPromoError('');
+        try {
+            const response = await parking.checkPromo(promoCode);
+            setAppliedPromo({
+                code: response.data.code,
+                discount: response.data.discount_value,
+                type: response.data.discount_type
+            });
+        } catch (error: any) {
+            setPromoError(error.response?.data?.detail || 'Invalid promo code');
+            setAppliedPromo(null);
+        } finally {
+            setPromoLoading(false);
+        }
+    };
+
+    const calculateTotal = () => {
+        const subtotal = duration * 10;
+        let discount = 0;
+        if (appliedPromo) {
+            if (appliedPromo.type === 'percentage') {
+                discount = (subtotal * appliedPromo.discount) / 100;
+            } else {
+                discount = appliedPromo.discount;
+            }
+            // Cap discount
+            discount = Math.min(discount, subtotal);
+        }
+        return { subtotal, discount, total: subtotal - discount };
+    };
+
+    const totals = calculateTotal();
+
     const handleSubmit = async () => {
         if (!selectedSpot) return;
         setLoading(true);
 
-        // Create date object from local input
         const localStartDateTime = new Date(`${date}T${startTime}`);
         const localEndDateTime = new Date(localStartDateTime.getTime() + duration * 60 * 60 * 1000);
 
@@ -148,10 +188,11 @@ const BookingPage: React.FC = () => {
                 name: vehicleData.name,
                 email: vehicleData.email,
                 phone: vehicleData.phone,
-                start_time: localStartDateTime.toISOString(), // This converts to UTC automatically
+                start_time: localStartDateTime.toISOString(),
                 end_time: localEndDateTime.toISOString(),
-                payment_method: 'credit_card', // Mock
-                payment_amount: duration * 10, // Mock $10/hr
+                payment_method: 'credit_card',
+                payment_amount: totals.subtotal,
+                promo_code: appliedPromo?.code
             });
             navigate('/dashboard');
         } catch (error: any) {
@@ -376,24 +417,83 @@ const BookingPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-6 rounded-2xl border border-indigo-500/20">
-                                <h3 className="font-bold text-lg text-white mb-4">Booking Summary</h3>
-                                <div className="space-y-3 text-sm">
-                                    <div className="flex justify-between py-2 border-b border-white/10">
-                                        <span className="text-gray-400">Spot</span>
-                                        <span className="font-mono font-bold text-indigo-300">{String.fromCharCode(65 + selectedSpot?.row!)}{selectedSpot?.col! + 1}</span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b border-white/10">
-                                        <span className="text-gray-400">Date</span>
-                                        <span className="font-medium text-white">{date}</span>
-                                    </div>
-                                    <div className="flex justify-between py-2 border-b border-white/10">
-                                        <span className="text-gray-400">Time</span>
-                                        <span className="font-medium text-white">{startTime} ({duration} hrs)</span>
-                                    </div>
-                                    <div className="pt-4 flex justify-between items-center">
-                                        <span className="font-bold text-gray-200">Total</span>
-                                        <span className="text-2xl font-bold text-indigo-400 text-glow">RM {duration * 10}</span>
+                            <div className="space-y-6">
+                                <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-6 rounded-2xl border border-indigo-500/20">
+                                    <h3 className="font-bold text-lg text-white mb-4">Booking Summary</h3>
+                                    <div className="space-y-3 text-sm">
+                                        <div className="flex justify-between py-2 border-b border-white/10">
+                                            <span className="text-gray-400">Spot</span>
+                                            <span className="font-mono font-bold text-indigo-300">
+                                                {String.fromCharCode(65 + (selectedSpot?.row || 0))}{((selectedSpot?.col || 0) + 1)}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between py-2 border-b border-white/10">
+                                            <span className="text-gray-400">Start Time</span>
+                                            <span className="font-medium text-white">{date} {startTime}</span>
+                                        </div>
+                                        <div className="flex justify-between py-2 border-b border-white/10">
+                                            <span className="text-gray-400">End Time</span>
+                                            <span className="font-medium text-white">
+                                                {new Date(new Date(`${date}T${startTime}`).getTime() + duration * 60 * 60 * 1000).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between py-2 border-b border-white/10">
+                                            <span className="text-gray-400">Duration</span>
+                                            <span className="font-medium text-white">{duration} Hours</span>
+                                        </div>
+
+                                        {/* Promo Code Section */}
+                                        <div className="pt-2">
+                                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Promo Code</label>
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={promoCode}
+                                                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                                    placeholder="Enter code"
+                                                    disabled={!!appliedPromo}
+                                                    className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-indigo-500"
+                                                />
+                                                {appliedPromo ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            setAppliedPromo(null);
+                                                            setPromoCode('');
+                                                        }}
+                                                        className="px-3 py-2 bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg text-xs font-bold hover:bg-red-900/50 transition-colors"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={handleApplyPromo}
+                                                        disabled={!promoCode || promoLoading}
+                                                        className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                                    >
+                                                        {promoLoading ? 'Checking...' : 'Apply'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {promoError && <p className="text-red-400 text-xs mt-1">{promoError}</p>}
+                                            {appliedPromo && <p className="text-green-400 text-xs mt-1">Code applied! {appliedPromo.type === 'percentage' ? `${appliedPromo.discount}% OFF` : `RM ${appliedPromo.discount} OFF`}</p>}
+                                        </div>
+
+                                        <div className="pt-4 space-y-2">
+                                            <div className="flex justify-between items-center text-gray-400 text-sm">
+                                                <span>Subtotal</span>
+                                                <span>RM {totals.subtotal.toFixed(2)}</span>
+                                            </div>
+                                            {totals.discount > 0 && (
+                                                <div className="flex justify-between items-center text-green-400 text-sm">
+                                                    <span>Discount</span>
+                                                    <span>- RM {totals.discount.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center pt-2 border-t border-white/10">
+                                                <span className="font-bold text-gray-200">Total</span>
+                                                <span className="text-2xl font-bold text-indigo-400 text-glow">RM {totals.total.toFixed(2)}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

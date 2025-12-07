@@ -57,6 +57,17 @@ class Vehicle(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = relationship("User", backref="vehicles")
+
+class PromoCode(Base):
+    __tablename__ = "promo_codes"
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(50), unique=True, index=True, nullable=False)
+    discount_type = Column(String(20), nullable=False) # "percentage" or "fixed"
+    discount_value = Column(Numeric(10, 2), nullable=False)
+    expiry_date = Column(DateTime, nullable=False)
+    usage_limit = Column(Integer, default=1)
+    current_uses = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
     
 class Booking(Base):
     __tablename__ = "bookings"
@@ -71,9 +82,13 @@ class Booking(Base):
     end_time = Column(DateTime, nullable=False)
     payment_method = Column(String(50), nullable=False)
     payment_amount = Column(Numeric(10, 2), nullable=False)
+    discount_amount = Column(Numeric(10, 2), default=0)
+    promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), nullable=True)
     status = Column(String(20), default="active")
     refund_status = Column(String(20), default="none")
     refund_amount = Column(Numeric(10, 2), default=0)
+    
+    promo_code = relationship("PromoCode")
     cancellation_reason = Column(Text)
     cancellation_time = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -102,6 +117,8 @@ class LayoutConfigDB(Base):
     id = Column(Integer, primary_key=True, index=True)
     rows = Column(Integer)
     cols = Column(Integer)
+
+
 
 # Pydantic Schemas
 class UserCreate(BaseModel):
@@ -147,6 +164,12 @@ class LayoutConfig(BaseModel):
     rows: int
     cols: int
 
+class PromoCodeResponse(BaseModel):
+    code: str
+    discount_type: str
+    discount_value: float
+    description: Optional[str] = None
+
 class VehicleCreate(BaseModel):
     license_plate: str = Field(..., min_length=1, max_length=20)
     owner_name: Optional[str] = Field(None, max_length=100)
@@ -185,6 +208,7 @@ class BookingCreate(BaseModel):
     end_time: datetime
     payment_method: str
     payment_amount: float = Field(..., ge=0)
+    promo_code: Optional[str] = None
 
 class BookingResponse(BaseModel):
     id: int
@@ -197,6 +221,8 @@ class BookingResponse(BaseModel):
     end_time: datetime
     payment_method: str
     payment_amount: float
+    discount_amount: float = 0.0
+    promo_code: Optional[str] = None
     status: str
     refund_status: str
     refund_amount: float

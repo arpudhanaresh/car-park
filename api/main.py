@@ -16,7 +16,8 @@ from models import (
     Base, User, ParkingSpot, LayoutConfigDB, Booking, Vehicle, BookingAuditLog,
     UserCreate, Token, ParkingState, LayoutConfig, BookingRequest, SpotSchema,
     BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
-    UserResponse
+    BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
+    UserResponse, PromoCode, PromoCodeResponse
 )
 
 # Load env vars
@@ -78,11 +79,16 @@ def get_db():
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-def get_password_hash(password):
-    # Bcrypt has a 72-byte limit, so we truncate if necessary
     if len(password.encode('utf-8')) > 72:
         password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
+
+def format_spot_id(row: int, col: int) -> str:
+    # A=0, B=1, ... and 1=0, 2=1 ...
+    # So Row 0, Col 0 -> A1. Row 1, Col 5 -> B6
+    row_char = chr(65 + row)
+    col_num = col + 1
+    return f"{row_char}{col_num}"
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -231,10 +237,29 @@ def update_layout(config: LayoutConfig, current_user: User = Depends(get_current
         layout.rows = config.rows
         layout.cols = config.cols
     
-    # Remove spots that are out of bounds
     db.query(ParkingSpot).filter((ParkingSpot.row >= config.rows) | (ParkingSpot.col >= config.cols)).delete()
     db.commit()
     return get_layout(db)
+
+@app.post("/promos/check", response_model=PromoCodeResponse)
+def check_promo_code(code: str, db: Session = Depends(get_db)):
+    promo = db.query(PromoCode).filter(PromoCode.code == code.upper(), PromoCode.is_active == True).first()
+    
+    if not promo:
+        raise HTTPException(status_code=404, detail="Invalid promo code")
+        
+    if promo.expiry_date < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Promo code expired")
+        
+    if promo.current_uses >= promo.usage_limit:
+        raise HTTPException(status_code=400, detail="Promo code usage limit reached")
+        
+    return PromoCodeResponse(
+        code=promo.code,
+        discount_type=promo.discount_type,
+        discount_value=float(promo.discount_value),
+        description=f"{promo.discount_value}% OFF" if promo.discount_type == "percentage" else f"FLAT {promo.discount_value} OFF"
+    )
 
 @app.post("/book")
 def book_spot(request: BookingRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -383,6 +408,32 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     spot.is_booked = True
     spot.booked_by_id = current_user.id
     
+    
+    # Calculate Payment
+    original_amount = float(booking_data.payment_amount)
+    final_amount = original_amount
+    discount_amount = 0.0
+    promo_code_id = None
+    
+    if booking_data.promo_code:
+        promo = db.query(PromoCode).filter(PromoCode.code == booking_data.promo_code.upper(), PromoCode.is_active == True).first()
+        if promo:
+            # Validate again just in case
+            if promo.expiry_date > datetime.utcnow() and promo.current_uses < promo.usage_limit:
+                if promo.discount_type == "percentage":
+                    discount_amount = (original_amount * float(promo.discount_value)) / 100
+                else:
+                    discount_amount = float(promo.discount_value)
+                
+                # Cap discount at original amount (no negative price)
+                discount_amount = min(discount_amount, original_amount)
+                final_amount = original_amount - discount_amount
+                
+                promo_code_id = promo.id
+                
+                # Update usage
+                promo.current_uses += 1
+                
     # Create detailed booking record
     booking = Booking(
         user_id=current_user.id,
@@ -394,7 +445,9 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         start_time=booking_data.start_time,
         end_time=booking_data.end_time,
         payment_method=booking_data.payment_method,
-        payment_amount=booking_data.payment_amount,
+        payment_amount=final_amount,
+        discount_amount=discount_amount,
+        promo_code_id=promo_code_id,
         status="active"
     )
     
@@ -404,7 +457,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     # Log the booking creation
     log_booking_audit(
         db, booking.id, current_user.id, "created", 
-        None, "active", f"Booking created for {vehicle.license_plate}"
+        None, "active", f"Booking created for {vehicle.license_plate}. Paid: {final_amount}"
     )
     
     db.commit()
@@ -415,7 +468,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     
     return BookingResponse(
         id=booking.id,
-        spot_info=f"Row {spot.row}, Col {spot.col}",
+        spot_info=format_spot_id(spot.row, spot.col),
         name=booking.name,
         email=booking.email,
         phone=booking.phone,
@@ -424,6 +477,8 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         end_time=booking.end_time,
         payment_method=booking.payment_method,
         payment_amount=float(booking.payment_amount),
+        discount_amount=float(booking.discount_amount),
+        promo_code=booking.promo_code.code if booking.promo_code else None,
         status=booking.status,
         refund_status=booking.refund_status,
         refund_amount=float(booking.refund_amount),
@@ -448,7 +503,7 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
         
         result.append(BookingResponse(
             id=booking.id,
-            spot_info=f"Row {booking.spot.row}, Col {booking.spot.col}",
+            spot_info=format_spot_id(booking.spot.row, booking.spot.col),
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
@@ -457,6 +512,8 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             end_time=booking.end_time,
             payment_method=booking.payment_method,
             payment_amount=float(booking.payment_amount),
+            discount_amount=float(booking.discount_amount),
+            promo_code=booking.promo_code.code if booking.promo_code else None,
             status=booking.status,
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),
@@ -482,7 +539,7 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
         
         result.append(BookingResponse(
             id=booking.id,
-            spot_info=f"Row {booking.spot.row}, Col {booking.spot.col}",
+            spot_info=format_spot_id(booking.spot.row, booking.spot.col),
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
@@ -491,6 +548,8 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             end_time=booking.end_time,
             payment_method=booking.payment_method,
             payment_amount=float(booking.payment_amount),
+            discount_amount=float(booking.discount_amount),
+            promo_code=booking.promo_code.code if booking.promo_code else None,
             status=booking.status,
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),

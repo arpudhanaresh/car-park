@@ -45,6 +45,7 @@ export const parking = {
   getUserBookings: () => api.get('/bookings'),
   getAllBookings: () => api.get('/admin/bookings'),
   cancelBooking: (id: number, reason: string) => api.delete(`/bookings/${id}`, { data: { cancellation_reason: reason } }),
+  checkPromo: (code: string) => api.post(`/promos/check?code=${code}`),
 };
 
 export const vehicles = {
