@@ -1,15 +1,18 @@
 from main import SessionLocal
-from models import PromoCode
+from models import PromoCode, User
 
 def check():
     print("Checking DB connection from main.py...")
     db = SessionLocal()
     try:
-        # Check connection info (hacky way to inspect engine url if possible, or just tests data)
-        print(f"Engine URL: {db.bind.url}")
-        
-        count = db.query(PromoCode).count()
-        print(f"PromoCode count: {count}")
+        # Check Users
+        print("\n--- Users ---")
+        users = db.query(User).all()
+        for u in users:
+            print(f"ID: {u.id}, Username: {u.username}, Email: {u.email}")
+            
+        # Check Promos
+        print("\n--- Promos ---")
         promos = db.query(PromoCode).all()
         for p in promos:
             print(f" - {p.code} (Active: {p.is_active})")

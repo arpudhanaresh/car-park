@@ -205,15 +205,37 @@ def get_layout(db: Session = Depends(get_db)):
     if not layout:
         layout = LayoutConfigDB(rows=5, cols=5) # Fallback
     
+    # PRODUCTION READY: Check for logic real-time occupancy
+    # A spot is booked if there is an ACTIVE booking covering the CURRENT time
+    current_time = datetime.utcnow()
+    
+    occupied_spot_ids = db.query(Booking.spot_id).filter(
+        Booking.status == 'active',
+        Booking.start_time <= current_time,
+        Booking.end_time > current_time
+    ).all()
+    
+    # Flatten list of tuples [(1,), (2,)] -> {1, 2}
+    occupied_ids_set = {s[0] for s in occupied_spot_ids}
+
     spots_db = db.query(ParkingSpot).all()
     spots_out = []
     for r in range(layout.rows):
         for c in range(layout.cols):
             spot = next((s for s in spots_db if s.row == r and s.col == c), None)
-            is_booked = spot.is_booked if spot else False
+            
+            # Determine status dynamically
+            is_booked = False
             booked_by_username = None
-            if spot and spot.booked_by:
-                booked_by_username = spot.booked_by.username
+            
+            if spot:
+                if spot.id in occupied_ids_set:
+                    is_booked = True
+                    # Optional: Fetch who booked it if needed (extra query or join above)
+                    # For simplicity, we skip username or fetch it if 'spot.booked_by' is still used for legacy
+                    # But ideally we join Booking to get the user. 
+                    # Keeping it simple: If occupied, we mark it.
+                
             spots_out.append(SpotSchema(
                 id=spot.id if spot else None,
                 row=r, 
@@ -381,6 +403,38 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         db.add(spot)
         db.flush()  # To get the ID
     
+    # TIME VALIDATION
+    # Normalize inputs to naive UTC for comparison with DB and utcnow
+    # The frontend is sending ISO strings with Z (offset-aware), but DB stores naive UTC
+    from datetime import timezone
+    
+    start_time_naive = booking_data.start_time
+    if start_time_naive.tzinfo:
+        start_time_naive = start_time_naive.astimezone(timezone.utc).replace(tzinfo=None)
+        
+    end_time_naive = booking_data.end_time
+    if end_time_naive.tzinfo:
+        end_time_naive = end_time_naive.astimezone(timezone.utc).replace(tzinfo=None)
+
+    # Allow 5 minute buffer for network latency/server time diffs
+    if start_time_naive < datetime.utcnow() - timedelta(minutes=5):
+        raise HTTPException(status_code=400, detail="Booking start time cannot be in the past")
+    
+    if end_time_naive <= start_time_naive:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+
+    # OVERLAP CHECK
+    # Check if this spot is already booked for the requested duration
+    overlapping_booking = db.query(Booking).filter(
+        Booking.spot_id == spot.id,
+        Booking.status == 'active',
+        Booking.start_time < end_time_naive,
+        Booking.end_time > start_time_naive
+    ).first()
+    
+    if overlapping_booking:
+        raise HTTPException(status_code=400, detail="This spot is already booked for the selected time range.")
+        
     # Handle vehicle
     vehicle = db.query(Vehicle).filter(
         Vehicle.license_plate == booking_data.license_plate.upper()
@@ -404,8 +458,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         db.add(vehicle)
         db.flush()  # To get the ID
     
-    # Mark spot as booked
-    spot.is_booked = True
+    # We do NOT set is_booked statically anymore. It is calculated dynamically based on time.
     spot.booked_by_id = current_user.id
     
     
@@ -442,8 +495,8 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         name=booking_data.name,
         email=booking_data.email,
         phone=booking_data.phone,
-        start_time=booking_data.start_time,
-        end_time=booking_data.end_time,
+        start_time=start_time_naive,
+        end_time=end_time_naive,
         payment_method=booking_data.payment_method,
         payment_amount=final_amount,
         discount_amount=discount_amount,

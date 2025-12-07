@@ -32,8 +32,42 @@ const BookingPage: React.FC = () => {
         const offset = d.getTimezoneOffset() * 60000;
         return new Date(d.getTime() - offset).toISOString().split('T')[0];
     });
-    const [startTime, setStartTime] = useState('09:00');
-    const [duration, setDuration] = useState(2);
+    const [startTime, setStartTime] = useState(() => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() + 30); // Default to next 30 min slot approx
+        return d.toTimeString().slice(0, 5);
+    });
+
+    // Default end time = start + 1 hour
+    const [endDate, setEndDate] = useState(date);
+    const [endTime, setEndTime] = useState(() => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() + 30 + 60); // Start (30 min from now) + 1 hour
+        return d.toTimeString().slice(0, 5);
+    });
+
+    // Auto-update end time when start time changes if not manually set (simple logic: force 1 hour duration if end <= start)
+    useEffect(() => {
+        if (!startTime || !endTime) return;
+
+        const start = new Date(`${date}T${startTime}`);
+        const end = new Date(`${endDate}T${endTime}`);
+
+        // If start time is pushed after end time, or if we want to enforce default 1h behavior on start change
+        // Let's just say: if end <= start, bump end to start + 1h
+        if (end <= start) {
+            const newEnd = new Date(start.getTime() + 60 * 60 * 1000);
+
+            // Handle date rollover
+            const offset = newEnd.getTimezoneOffset() * 60000;
+            const localISODate = new Date(newEnd.getTime() - offset).toISOString().split('T')[0];
+            const localISOTime = newEnd.toTimeString().slice(0, 5);
+
+            setEndDate(localISODate);
+            setEndTime(localISOTime);
+        }
+    }, [startTime, date]);
+
     const [selectedSpot, setSelectedSpot] = useState<{ row: number, col: number } | null>(null);
 
     const [vehicleData, setVehicleData] = useState({
@@ -147,8 +181,18 @@ const BookingPage: React.FC = () => {
         }
     };
 
+    const getDurationHours = () => {
+        const start = new Date(`${date}T${startTime}`);
+        const end = new Date(`${endDate}T${endTime}`);
+        const diffMs = end.getTime() - start.getTime();
+        const diffHrs = diffMs / (1000 * 60 * 60);
+        return diffHrs > 0 ? diffHrs : 0;
+    };
+
     const calculateTotal = () => {
-        const subtotal = duration * 10;
+        const duration = Math.ceil(getDurationHours()); // Charge per hour started
+        const subtotal = duration * 10; // Rate 10/hr
+
         let discount = 0;
         if (appliedPromo) {
             if (appliedPromo.type === 'percentage') {
@@ -159,7 +203,7 @@ const BookingPage: React.FC = () => {
             // Cap discount
             discount = Math.min(discount, subtotal);
         }
-        return { subtotal, discount, total: subtotal - discount };
+        return { subtotal, discount, total: Math.max(0, subtotal - discount), duration };
     };
 
     const totals = calculateTotal();
@@ -169,7 +213,7 @@ const BookingPage: React.FC = () => {
         setLoading(true);
 
         const localStartDateTime = new Date(`${date}T${startTime}`);
-        const localEndDateTime = new Date(localStartDateTime.getTime() + duration * 60 * 60 * 1000);
+        const localEndDateTime = new Date(`${endDate}T${endTime}`);
 
         try {
             await parking.createBooking({
@@ -240,39 +284,81 @@ const BookingPage: React.FC = () => {
                             Select Date & Time
                         </h2>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="space-y-2">
-                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Date</label>
-                                <input
-                                    type="date"
-                                    value={date}
-                                    min={new Date().toISOString().split('T')[0]}
-                                    onChange={(e) => setDate(e.target.value)}
-                                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                            {/* Start */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-wider">Start</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400">Date</label>
+                                        <input
+                                            type="date"
+                                            value={date}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            onChange={(e) => {
+                                                setDate(e.target.value);
+                                                // Auto update end date if start > end logic needed, keeping simple for now
+                                                if (e.target.value > endDate) setEndDate(e.target.value);
+                                            }}
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400">Time</label>
+                                        <input
+                                            type="time"
+                                            value={startTime}
+                                            onChange={(e) => setStartTime(e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                        />
+                                    </div>
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Start Time</label>
-                                <input
-                                    type="time"
-                                    value={startTime}
-                                    onChange={(e) => setStartTime(e.target.value)}
-                                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Duration</label>
-                                <select
-                                    value={duration}
-                                    onChange={(e) => setDuration(parseInt(e.target.value))}
-                                    className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all appearance-none"
-                                >
-                                    {[1, 2, 3, 4, 5, 6, 7, 8, 12, 24].map(h => (
-                                        <option key={h} value={h} className="bg-gray-900">{h} Hour{h > 1 ? 's' : ''}</option>
-                                    ))}
-                                </select>
+
+                            {/* End */}
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-wider">End</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400">Date</label>
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            min={date} // Cannot end before start date
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-xs font-medium text-gray-400">Time</label>
+                                        <input
+                                            type="time"
+                                            value={endTime}
+                                            onChange={(e) => setEndTime(e.target.value)}
+                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Validation Feedback */}
+                        {(() => {
+                            const start = new Date(`${date}T${startTime}`);
+                            const end = new Date(`${endDate}T${endTime}`);
+                            const now = new Date();
+                            // Create tolerance for "now" (e.g. 1 min buffer)
+                            const nowBuffer = new Date(now.getTime() - 60000);
+
+                            if (start < nowBuffer) {
+                                return <div className="p-3 bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg text-sm text-center">Start time cannot be in the past.</div>;
+                            }
+                            if (end <= start) {
+                                return <div className="p-3 bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg text-sm text-center">End time must be after start time.</div>;
+                            }
+                            const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                            return <div className="p-3 bg-green-900/20 text-green-400 border border-green-900/30 rounded-lg text-sm text-center">Duration: {hours.toFixed(1)} Hours ({Math.ceil(hours)} chargeable)</div>;
+                        })()}
                     </div>
                 )}
 
@@ -434,12 +520,12 @@ const BookingPage: React.FC = () => {
                                         <div className="flex justify-between py-2 border-b border-white/10">
                                             <span className="text-gray-400">End Time</span>
                                             <span className="font-medium text-white">
-                                                {new Date(new Date(`${date}T${startTime}`).getTime() + duration * 60 * 60 * 1000).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                {endDate} {endTime}
                                             </span>
                                         </div>
                                         <div className="flex justify-between py-2 border-b border-white/10">
                                             <span className="text-gray-400">Duration</span>
-                                            <span className="font-medium text-white">{duration} Hours</span>
+                                            <span className="font-medium text-white">{totals.duration} Hours</span>
                                         </div>
 
                                         {/* Promo Code Section */}
@@ -515,6 +601,27 @@ const BookingPage: React.FC = () => {
                     {step < 3 ? (
                         <button
                             onClick={() => {
+                                if (step === 1) {
+                                    // Validate time
+                                    const start = new Date(`${date}T${startTime}`);
+                                    const end = new Date(`${endDate}T${endTime}`);
+                                    const now = new Date();
+                                    const nowBuffer = new Date(now.getTime() - 60000);
+
+                                    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                                        alert("Please enter valid dates and times");
+                                        return;
+                                    }
+                                    if (start < nowBuffer) {
+                                        alert("Cannot book in the past!");
+                                        return;
+                                    }
+                                    if (end <= start) {
+                                        alert("End time must be after start time");
+                                        return;
+                                    }
+                                }
+
                                 if (step === 2 && !selectedSpot) {
                                     alert("Please select a spot");
                                     return;

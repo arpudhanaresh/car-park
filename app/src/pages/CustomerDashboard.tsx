@@ -44,6 +44,22 @@ const CustomerDashboard: React.FC = () => {
         setIsCancelModalOpen(true);
     };
 
+    const calculateRefundPreview = (booking: Booking | undefined) => {
+        if (!booking) return { percentage: 0, amount: 0, note: "Unknown" };
+        const start = new Date(booking.start_time);
+        const now = new Date();
+        const diffMs = start.getTime() - now.getTime();
+        const diffHrs = diffMs / (1000 * 60 * 60);
+
+        if (diffHrs >= 24) {
+            return { percentage: 100, amount: booking.payment_amount, note: "Full Refund (> 24h notice)" };
+        } else if (diffHrs >= 2) {
+            return { percentage: 50, amount: booking.payment_amount * 0.5, note: "50% Refund (2-24h notice)" };
+        } else {
+            return { percentage: 0, amount: 0, note: "No Refund (< 2h notice)" };
+        }
+    };
+
     const confirmCancel = async () => {
         if (!selectedBookingId) return;
 
@@ -132,7 +148,7 @@ const CustomerDashboard: React.FC = () => {
                                         className="flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
                                     >
                                         <Trash2 size={14} />
-                                        Cancel
+                                        Cancel <span className="opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
                                     </button>
                                 )}
                             </div>
@@ -162,6 +178,23 @@ const CustomerDashboard: React.FC = () => {
                         <div className="p-6 border-b border-white/10">
                             <h2 className="text-xl font-bold text-white">Cancel Booking</h2>
                             <p className="text-sm text-gray-400 mt-1">Please provide a reason for cancellation.</p>
+
+                            {/* Refund Preview */}
+                            {(() => {
+                                const booking = bookings.find(b => b.id === selectedBookingId);
+                                const refund = calculateRefundPreview(booking);
+                                return (
+                                    <div className={`mt-4 p-4 rounded-xl border ${refund.percentage > 0 ? 'bg-green-900/20 border-green-900/30' : 'bg-red-900/20 border-red-900/30'}`}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs uppercase font-bold text-gray-400 tracking-wider">Estimated Refund</span>
+                                            <span className={`font-bold ${refund.percentage > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                RM {refund.amount.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-300">{refund.note}</p>
+                                    </div>
+                                );
+                            })()}
                         </div>
                         <div className="p-6 space-y-4">
                             <textarea
