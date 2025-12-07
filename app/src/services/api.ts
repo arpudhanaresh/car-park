@@ -61,4 +61,12 @@ export const vehicles = {
   createOrUpdate: (data: any) => api.post('/vehicles', data),
 };
 
+export const admin = {
+    getConfig: () => api.get('/admin/config'),
+    updateConfig: (data: any) => api.post('/admin/config', data),
+    getPromos: () => api.get('/admin/promos'),
+    createPromo: (data: any) => api.post('/admin/promos', data),
+    togglePromo: (id: number) => api.put(`/admin/promos/${id}/toggle`),
+};
+
 export default api;

@@ -19,6 +19,13 @@ class User(Base):
     email = Column(String(100))
     phone = Column(String(20))
 
+class SystemConfig(Base):
+    __tablename__ = "system_config"
+    key = Column(String(50), primary_key=True, index=True)
+    value = Column(String(255), nullable=False)
+    description = Column(String(255))
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class ParkingSpot(Base):
     __tablename__ = "parking_spots"
     id = Column(Integer, primary_key=True, index=True)

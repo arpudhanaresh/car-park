@@ -1,7 +1,9 @@
 import os
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Optional
 from contextlib import asynccontextmanager
+
+from pydantic import BaseModel
 
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,8 +19,17 @@ from models import (
     UserCreate, Token, ParkingState, LayoutConfig, BookingRequest, SpotSchema,
     BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
     BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
-    UserResponse, PromoCode, PromoCodeResponse
+    UserResponse, PromoCode, PromoCodeResponse, SystemConfig
 )
+
+# Pydantic Models for Config
+class ConfigItem(BaseModel):
+    key: str
+    value: str
+    description: Optional[str] = None
+
+class ConfigUpdate(BaseModel):
+    configs: List[ConfigItem]
 
 # Load env vars
 load_dotenv()
@@ -287,6 +298,106 @@ def update_layout(config: LayoutConfig, current_user: User = Depends(get_current
     db.commit()
     return get_layout(db)
 
+@app.get("/admin/config", response_model=List[ConfigItem])
+def get_system_config(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    configs = db.query(SystemConfig).all()
+    return [ConfigItem(key=c.key, value=c.value, description=c.description) for c in configs]
+
+@app.post("/admin/config")
+def update_system_config(update_data: ConfigUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    for item in update_data.configs:
+        config = db.query(SystemConfig).filter(SystemConfig.key == item.key).first()
+        if config:
+            config.value = item.value
+            if item.description:
+                config.description = item.description
+        else:
+            # Create if not exists
+            new_config = SystemConfig(key=item.key, value=item.value, description=item.description)
+            db.add(new_config)
+            
+    db.commit()
+    return {"message": "Configuration updated successfully"}
+
+# Promo Code Models
+class PromoCodeCreate(BaseModel):
+    code: str
+    discount_type: str # percentage, fixed
+    discount_value: float
+    expiry_date: datetime
+    usage_limit: int = 100
+
+@app.get("/admin/promos", response_model=List[PromoCodeResponse])
+def get_all_promos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    promos = db.query(PromoCode).all()
+    # Map to response manually or use orm_mode 
+    return [
+        PromoCodeResponse(
+            id=p.id,
+            code=p.code,
+            discount_type=p.discount_type,
+            discount_value=float(p.discount_value),
+            expiry_date=p.expiry_date, # Assuming response schema has this
+            usage_limit=p.usage_limit, # And this
+            current_uses=p.current_uses,
+            is_active=p.is_active,
+            description=f"{p.discount_value}% OFF" if p.discount_type == "percentage" else f"FLAT {p.discount_value} OFF"
+        ) for p in promos
+    ]
+
+@app.post("/admin/promos", response_model=PromoCodeResponse)
+def create_promo(promo_data: PromoCodeCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    existing = db.query(PromoCode).filter(PromoCode.code == promo_data.code.upper()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Promo code already exists")
+        
+    new_promo = PromoCode(
+        code=promo_data.code.upper(),
+        discount_type=promo_data.discount_type,
+        discount_value=promo_data.discount_value,
+        expiry_date=promo_data.expiry_date,
+        usage_limit=promo_data.usage_limit,
+        is_active=True
+    )
+    db.add(new_promo)
+    db.commit()
+    db.refresh(new_promo)
+    
+    return PromoCodeResponse(
+        id=new_promo.id,
+        code=new_promo.code,
+        discount_type=new_promo.discount_type,
+        discount_value=float(new_promo.discount_value),
+        expiry_date=new_promo.expiry_date,
+        usage_limit=new_promo.usage_limit,
+        current_uses=new_promo.current_uses,
+        is_active=new_promo.is_active,
+        description=f"{new_promo.discount_value}% OFF" if new_promo.discount_type == "percentage" else f"FLAT {new_promo.discount_value} OFF"
+    )
+
+@app.put("/admin/promos/{promo_id}/toggle")
+def toggle_promo(promo_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    promo = db.query(PromoCode).filter(PromoCode.id == promo_id).first()
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+        
+    promo.is_active = not promo.is_active
+    db.commit()
+    return {"message": f"Promo code {'activated' if promo.is_active else 'deactivated'}", "is_active": promo.is_active}
+
 @app.post("/promos/check", response_model=PromoCodeResponse)
 def check_promo_code(code: str, db: Session = Depends(get_db)):
     promo = db.query(PromoCode).filter(PromoCode.code == code.upper(), PromoCode.is_active == True).first()
@@ -397,16 +508,35 @@ def log_booking_audit(db: Session, booking_id: int, user_id: int, action: str, o
     )
     db.add(audit_log)
 
-def calculate_refund_amount(booking: Booking, cancellation_time: datetime) -> tuple[float, str]:
+def calculate_refund_amount(booking: Booking, cancellation_time: datetime, db: Session) -> tuple[float, str]:
+    # Default values
+    rule_1_hours = 24
+    rule_2_hours = 2
+    rule_2_percent = 50
+    
+    # Fetch from DB
+    try:
+        configs = db.query(SystemConfig).all()
+        config_map = {c.key: c.value for c in configs}
+        
+        if "cancellation_rule_1_hours" in config_map:
+            rule_1_hours = int(config_map["cancellation_rule_1_hours"])
+        if "cancellation_rule_2_hours" in config_map:
+            rule_2_hours = int(config_map["cancellation_rule_2_hours"])
+        if "cancellation_rule_2_percent" in config_map:
+            rule_2_percent = float(config_map["cancellation_rule_2_percent"])
+    except Exception as e:
+        print(f"Error fetching config: {e}") 
+
     hours_before_start = (booking.start_time - cancellation_time).total_seconds() / 3600
     
-    if hours_before_start >= 24:
-        return float(booking.payment_amount), "100% refund - cancelled more than 24 hours in advance"
-    elif hours_before_start >= 2:
-        refund = float(booking.payment_amount) * 0.5
-        return refund, "50% refund - cancelled within 24 hours"
+    if hours_before_start >= rule_1_hours:
+        return float(booking.payment_amount), "100% refund - full refund window"
+    elif hours_before_start >= rule_2_hours:
+        refund = float(booking.payment_amount) * (rule_2_percent / 100.0)
+        return refund, f"{rule_2_percent}% refund - partial refund window"
     else:
-        return 0, "No refund - cancelled within 2 hours of start time"
+        return 0, "No refund - late cancellation"
 
 @app.post("/bookings", response_model=BookingResponse)
 def create_booking(booking_data: BookingCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -745,7 +875,8 @@ def cancel_booking(
         raise HTTPException(status_code=400, detail="Cannot cancel booking that has already started")
     
     # Calculate refund amount
-    refund_amount, refund_reason = calculate_refund_amount(booking, current_time)
+    # Calculate refund amount
+    refund_amount, refund_reason = calculate_refund_amount(booking, current_time, db)
     
     # Update booking status
     old_status = booking.status
