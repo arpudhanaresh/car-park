@@ -34,6 +34,7 @@ def migrate_config():
         {"key": "cancellation_rule_1_hours", "value": "24", "description": "Hours before start for full refund"},
         {"key": "cancellation_rule_2_hours", "value": "2", "description": "Hours before start for partial refund"},
         {"key": "cancellation_rule_2_percent", "value": "50", "description": "Percentage refund for partial window"},
+        {"key": "hourly_rate", "value": "10", "description": "Base hourly parking rate"},
     ]
     
     for config in defaults:

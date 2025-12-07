@@ -322,7 +322,22 @@ def update_system_config(update_data: ConfigUpdate, current_user: User = Depends
             db.add(new_config)
             
     db.commit()
+    db.commit()
     return {"message": "Configuration updated successfully"}
+
+@app.get("/config/public")
+def get_public_config(db: Session = Depends(get_db)):
+    """
+    Fetch public configuration values (e.g. pricing) that don't require auth.
+    """
+    public_keys = ["hourly_rate"]
+    configs = db.query(SystemConfig).filter(SystemConfig.key.in_(public_keys)).all()
+    
+    result = {}
+    for c in configs:
+        result[c.key] = c.value
+        
+    return result
 
 # Promo Code Models
 class PromoCodeCreate(BaseModel):

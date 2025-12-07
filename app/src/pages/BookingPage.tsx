@@ -169,6 +169,22 @@ const BookingPage: React.FC = () => {
         }
     };
 
+    const [baseRate, setBaseRate] = useState(10); // Default fallback
+
+    useEffect(() => {
+        const fetchConfig = async () => {
+            try {
+                const response = await parking.getPublicConfig();
+                if (response.data.hourly_rate) {
+                    setBaseRate(Number(response.data.hourly_rate));
+                }
+            } catch (error) {
+                console.error("Failed to fetch public config", error);
+            }
+        };
+        fetchConfig();
+    }, []);
+
     const [promoCode, setPromoCode] = useState('');
     const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number; type: string } | null>(null);
     const [promoError, setPromoError] = useState('');
@@ -203,7 +219,7 @@ const BookingPage: React.FC = () => {
 
     const calculateTotal = () => {
         const duration = Math.ceil(getDurationHours()); // Charge per hour started
-        const subtotal = duration * 10; // Rate 10/hr
+        const subtotal = duration * baseRate; // Dynamic base rate
 
         let discount = 0;
         if (appliedPromo) {

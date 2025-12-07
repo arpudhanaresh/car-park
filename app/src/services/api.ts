@@ -53,6 +53,7 @@ export const parking = {
   cancelBooking: (id: number, reason: string) => api.delete(`/bookings/${id}`, { data: { cancellation_reason: reason } }),
   closeBooking: (id: number) => api.post(`/admin/bookings/${id}/close`),
   checkPromo: (code: string) => api.post(`/promos/check?code=${code}`),
+  getPublicConfig: () => api.get('/config/public'),
 };
 
 export const vehicles = {
