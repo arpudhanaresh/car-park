@@ -50,6 +50,30 @@ const CustomerDashboard: React.FC = () => {
         setIsCancelModalOpen(true);
     };
 
+    const [config, setConfig] = useState({
+        rule1Hours: 24,
+        rule2Hours: 2,
+        rule2Percent: 50
+    });
+
+    useEffect(() => {
+        const fetchConfig = async () => {
+            try {
+                const response = await parking.getPublicConfig();
+                if (response.data) {
+                    setConfig({
+                        rule1Hours: Number(response.data.cancellation_rule_1_hours) || 24,
+                        rule2Hours: Number(response.data.cancellation_rule_2_hours) || 2,
+                        rule2Percent: Number(response.data.cancellation_rule_2_percent) || 50
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to fetch config", error);
+            }
+        };
+        fetchConfig();
+    }, []);
+
     const calculateRefundPreview = (booking: Booking | undefined) => {
         if (!booking) return { percentage: 0, amount: 0, note: "Unknown" };
         const start = new Date(booking.start_time);
@@ -57,12 +81,13 @@ const CustomerDashboard: React.FC = () => {
         const diffMs = start.getTime() - now.getTime();
         const diffHrs = diffMs / (1000 * 60 * 60);
 
-        if (diffHrs >= 24) {
-            return { percentage: 100, amount: booking.payment_amount, note: "Full Refund (> 24h notice)" };
-        } else if (diffHrs >= 2) {
-            return { percentage: 50, amount: booking.payment_amount * 0.5, note: "50% Refund (2-24h notice)" };
+        if (diffHrs >= config.rule1Hours) {
+            return { percentage: 100, amount: booking.payment_amount, note: `Full Refund (> ${config.rule1Hours}h notice)` };
+        } else if (diffHrs >= config.rule2Hours) {
+            const refundAmount = (booking.payment_amount * config.rule2Percent) / 100;
+            return { percentage: config.rule2Percent, amount: refundAmount, note: `${config.rule2Percent}% Refund (${config.rule2Hours}-${config.rule1Hours}h notice)` };
         } else {
-            return { percentage: 0, amount: 0, note: "No Refund (< 2h notice)" };
+            return { percentage: 0, amount: 0, note: `No Refund (< ${config.rule2Hours}h notice)` };
         }
     };
 

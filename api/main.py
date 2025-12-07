@@ -330,7 +330,7 @@ def get_public_config(db: Session = Depends(get_db)):
     """
     Fetch public configuration values (e.g. pricing) that don't require auth.
     """
-    public_keys = ["hourly_rate"]
+    public_keys = ["hourly_rate", "cancellation_rule_1_hours", "cancellation_rule_2_hours", "cancellation_rule_2_percent"]
     configs = db.query(SystemConfig).filter(SystemConfig.key.in_(public_keys)).all()
     
     result = {}
