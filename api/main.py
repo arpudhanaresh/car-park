@@ -8,18 +8,22 @@ from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from dotenv import load_dotenv
 
+# ... models imports ... 
+
+
+
 from models import (
     Base, User, ParkingSpot, LayoutConfigDB, Booking, Vehicle, BookingAuditLog,
     UserCreate, Token, ParkingState, LayoutConfig, BookingRequest, SpotSchema,
     BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
-    BookingCreate, BookingResponse, VehicleCreate, VehicleResponse, CancelBookingRequest,
-    UserResponse, PromoCode, PromoCodeResponse, SystemConfig
+    AnalyticsResponse, ChartData, UpdateSpot, PromoCode, PromoCodeCreate, PromoCodeResponse, SystemConfig,
+    UserResponse
 )
 
 # Pydantic Models for Config
@@ -77,6 +81,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
 
 # Dependency
 def get_db():
@@ -263,23 +270,108 @@ def get_layout(
             is_booked = False
             booked_by_username = None
             
+            label = ""
+            spot_type = "standard"
+
             if spot:
                 if spot.id in occupied_ids_set:
                     is_booked = True
-                    # Optional: Fetch who booked it if needed (extra query or join above)
-                    # For simplicity, we skip username or fetch it if 'spot.booked_by' is still used for legacy
-                    # But ideally we join Booking to get the user. 
-                    # Keeping it simple: If occupied, we mark it.
+                label = spot.label if spot.label else f"{chr(65 + r)}{c + 1}"
+                spot_type = spot.spot_type if spot.spot_type else "standard"
+            else:
+                 # Virtual spot if not in DB yet (shouldn't happen much if configured right)
+                label = f"{chr(65 + r)}{c + 1}"
                 
             spots_out.append(SpotSchema(
                 id=spot.id if spot else None,
                 row=r, 
                 col=c, 
                 is_booked=is_booked,
+                label=label,
+                spot_type=spot_type,
                 booked_by_username=booked_by_username
             ))
             
     return ParkingState(rows=layout.rows, cols=layout.cols, spots=spots_out)
+
+class UpdateSpot(BaseModel):
+    label: Optional[str] = None
+    spot_type: Optional[str] = None # standard, ev, vip
+
+@app.put("/admin/spots/{spot_id}")
+def update_spot(spot_id: int, updates: UpdateSpot, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    spot = db.query(ParkingSpot).filter(ParkingSpot.id == spot_id).first()
+    if not spot:
+        raise HTTPException(status_code=404, detail="Spot not found")
+        
+    if updates.label is not None:
+        spot.label = updates.label
+    if updates.spot_type is not None:
+        spot.spot_type = updates.spot_type
+        
+    db.commit()
+    return {"message": "Spot updated successfully"}
+
+@app.get("/admin/analytics", response_model=AnalyticsResponse)
+def get_analytics(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    # KPIs
+    total_revenue = db.query(func.sum(Booking.payment_amount)).filter(Booking.status.in_(['active', 'completed'])).scalar() or 0.0
+    total_bookings = db.query(func.count(Booking.id)).filter(Booking.status != 'cancelled').scalar() or 0
+    active_bookings = db.query(func.count(Booking.id)).filter(Booking.status == 'active').scalar() or 0
+    
+    # Revenue Chart (Last 7 Days)
+    from datetime import timedelta
+    seven_days_ago = datetime.utcnow() - timedelta(days=7)
+    
+    # MySQL specific date grouping
+    # Note: SQLite uses strftime, MySQL uses DATE()
+    revenue_data = db.query(
+        func.date(Booking.start_time).label('date'),
+        func.sum(Booking.payment_amount).label('total')
+    ).filter(
+        Booking.start_time >= seven_days_ago,
+        Booking.status.in_(['active', 'completed'])
+    ).group_by(func.date(Booking.start_time)).all()
+    
+    revenue_chart = [ChartData(name=str(r.date), value=float(r.total)) for r in revenue_data]
+   
+    # Simplified Occupancy (Bookings by Hour of Day)
+    occupancy_data = db.query(
+        func.extract('hour', Booking.start_time).label('hour'),
+        func.count(Booking.id).label('count')
+    ).filter(
+        Booking.status != 'cancelled'
+    ).group_by(func.extract('hour', Booking.start_time)).order_by('hour').all()
+    
+    # Fill 0-23 hours
+    occupancy_map = {r.hour: r.count for r in occupancy_data}
+    occupancy_chart = [ChartData(name=f"{h:02d}:00", value=occupancy_map.get(str(h), 0) if isinstance(h, str) else occupancy_map.get(int(h), 0) if isinstance(h, (int, float)) else occupancy_map.get(h, 0)) for h in range(24)]
+    
+    # Fix for SQLAlchemy returning decimals
+    # Actually extract returns integer usually, but let's be safe. 
+    # Let's just iterate 0..23 and check map
+    occupancy_chart = []
+    for h in range(24):
+        val = 0
+        for r in occupancy_data:
+            if int(r.hour) == h:
+                val = r.count
+                break
+        occupancy_chart.append(ChartData(name=f"{h:02d}:00", value=val))
+
+    return AnalyticsResponse(
+        total_revenue=float(total_revenue),
+        total_bookings=total_bookings,
+        active_bookings=active_bookings,
+        revenue_chart=revenue_chart,
+        occupancy_chart=occupancy_chart
+    )
 
 @app.post("/admin/layout")
 def update_layout(config: LayoutConfig, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -682,8 +774,26 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     spot.booked_by_id = current_user.id
     
     
-    # Calculate Payment
-    original_amount = float(booking_data.payment_amount)
+    # Calculate Payment (Server-side Authority)
+    # Fetch base rate
+    hourly_rate_config = db.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
+    hourly_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
+    
+    # Calculate duration in hours
+    duration_hours = (end_time_naive - start_time_naive).total_seconds() / 3600.0
+    
+    # Apply Spot Type Multiplier
+    multiplier = 1.0
+    if spot.spot_type == 'ev':
+        multiplier = 1.5
+    elif spot.spot_type == 'vip':
+        multiplier = 2.0
+        
+    calculated_base_amount = duration_hours * hourly_rate * multiplier
+    
+    # Round to 2 decimals
+    original_amount = round(calculated_base_amount, 2)
+    
     final_amount = original_amount
     discount_amount = 0.0
     promo_code_id = None
@@ -739,6 +849,8 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     
     db.commit()
     db.refresh(booking)
+    
+
     
     # Check if booking can be cancelled (configurable business rule)
     can_cancel = booking.status == "active" and booking.start_time > datetime.utcnow()
@@ -838,6 +950,8 @@ def close_booking(booking_id: int, current_user: User = Depends(get_current_user
     db.commit()
     db.refresh(booking)
     
+
+    
     # Log it
     log_booking_audit(
         db, booking.id, current_user.id, "completed", 
@@ -919,6 +1033,7 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
 def cancel_booking(
     booking_id: int, 
     cancel_data: CancelBookingRequest,
+
     current_user: User = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
@@ -940,7 +1055,6 @@ def cancel_booking(
     if booking.start_time <= current_time:
         raise HTTPException(status_code=400, detail="Cannot cancel booking that has already started")
     
-    # Calculate refund amount
     # Calculate refund amount
     refund_amount, refund_reason = calculate_refund_amount(booking, current_time, db)
     
@@ -965,6 +1079,8 @@ def cancel_booking(
     )
     
     db.commit()
+    
+
     
     return {
         "message": "Booking cancelled successfully",

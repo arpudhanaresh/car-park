@@ -34,6 +34,9 @@ class ParkingSpot(Base):
     is_booked = Column(Boolean, default=False)
     booked_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
+    label = Column(String(10), default="") # e.g. "A1", "VIP-1"
+    spot_type = Column(String(20), default="standard") # standard, ev, vip
+
     booked_by = relationship("User")
 
 class BookingStatus(PyEnum):
@@ -163,7 +166,13 @@ class SpotSchema(BaseModel):
     row: int
     col: int
     is_booked: bool
+    label: str = ""
+    spot_type: str = "standard"
     booked_by_username: Optional[str] = None
+
+class UpdateSpot(BaseModel):
+    label: Optional[str] = None
+    spot_type: Optional[str] = None
 
 class ParkingState(BaseModel):
     rows: int
@@ -173,6 +182,15 @@ class ParkingState(BaseModel):
 class LayoutConfig(BaseModel):
     rows: int
     cols: int
+
+class PromoCodeCreate(BaseModel):
+    code: str
+    discount_type: str
+    discount_value: float
+    description: Optional[str] = None
+    expiry_date: datetime
+    usage_limit: int = 100
+    is_active: bool = True
 
 class PromoCodeResponse(BaseModel):
     id: Optional[int] = None
@@ -254,6 +272,17 @@ class BookingResponse(BaseModel):
 
 class CancelBookingRequest(BaseModel):
     cancellation_reason: Optional[str] = None
+
+class ChartData(BaseModel):
+    name: str 
+    value: float
+
+class AnalyticsResponse(BaseModel):
+    total_revenue: float
+    total_bookings: int
+    active_bookings: int
+    revenue_chart: List[ChartData]
+    occupancy_chart: List[ChartData]
 
 class BookingRequest(BaseModel):
     row: int

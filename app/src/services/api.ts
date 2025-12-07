@@ -70,6 +70,8 @@ export const admin = {
     togglePromo: (id: number) => api.put(`/admin/promos/${id}/toggle`),
     deletePromo: (id: number) => api.delete(`/admin/promos/${id}`),
     updatePromo: (id: number, data: any) => api.put(`/admin/promos/${id}/update`, data),
+    updateSpot: (id: number, data: any) => api.put(`/admin/spots/${id}`, data),
+    getAnalytics: () => api.get('/admin/analytics'),
 };
 
 export default api;

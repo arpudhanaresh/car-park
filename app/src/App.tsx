@@ -8,7 +8,6 @@ import CustomerDashboard from './pages/CustomerDashboard';
 import BookingPage from './pages/BookingPage';
 import MyVehicles from './pages/MyVehicles';
 
-// Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({
   children,
   allowedRoles

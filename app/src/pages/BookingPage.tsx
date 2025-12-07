@@ -9,6 +9,8 @@ interface Spot {
     row: number;
     col: number;
     is_booked: boolean;
+    label: string;
+    spot_type: string;
     booked_by_username?: string;
 }
 
@@ -68,7 +70,7 @@ const BookingPage: React.FC = () => {
         }
     }, [startTime, date]);
 
-    const [selectedSpot, setSelectedSpot] = useState<{ row: number, col: number } | null>(null);
+    const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
 
     const [vehicleData, setVehicleData] = useState({
         license_plate: '',
@@ -93,14 +95,14 @@ const BookingPage: React.FC = () => {
         if (step === 2) {
             const start = new Date(`${date}T${startTime}`);
             const end = new Date(`${endDate}T${endTime}`);
-            // Safety check
+
             if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
                 fetchLayout(start.toISOString(), end.toISOString());
             }
         }
     }, [step, date, startTime, endDate, endTime]);
 
-    // Update form with user details when available
+    // Update vehicle form defaults when user data loads
     useEffect(() => {
         if (user) {
             setVehicleData(prev => ({
@@ -219,7 +221,12 @@ const BookingPage: React.FC = () => {
 
     const calculateTotal = () => {
         const duration = Math.ceil(getDurationHours()); // Charge per hour started
-        const subtotal = duration * baseRate; // Dynamic base rate
+
+        let multiplier = 1.0;
+        if (selectedSpot?.spot_type === 'ev') multiplier = 1.5;
+        if (selectedSpot?.spot_type === 'vip') multiplier = 2.0;
+
+        const subtotal = duration * baseRate * multiplier; // Dynamic base rate with multiplier
 
         let discount = 0;
         if (appliedPromo) {
@@ -231,7 +238,7 @@ const BookingPage: React.FC = () => {
             // Cap discount
             discount = Math.min(discount, subtotal);
         }
-        return { subtotal, discount, total: Math.max(0, subtotal - discount), duration };
+        return { subtotal, discount, total: Math.max(0, subtotal - discount), duration, multiplier };
     };
 
     const totals = calculateTotal();
@@ -418,18 +425,23 @@ const BookingPage: React.FC = () => {
                                                 <button
                                                     key={`${r}-${c}`}
                                                     disabled={isBooked}
-                                                    onClick={() => setSelectedSpot({ row: r, col: c })}
+                                                    onClick={() => setSelectedSpot(spot || { row: r, col: c, id: 0, is_booked: false, label: '', spot_type: 'standard' })}
                                                     className={`
-                            h-14 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-300 relative overflow-hidden
+                            h-14 rounded-xl flex items-center justify-center text-xs font-bold transition-all duration-300 relative overflow-hidden ring-1 ring-inset
                             ${isBooked
-                                                            ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed border border-red-900/20'
+                                                            ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed border-red-900/20 ring-red-900/20'
                                                             : isSelected
-                                                                ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] border border-indigo-400 scale-110 z-10'
-                                                                : 'bg-gray-800/50 text-gray-400 border border-gray-700 hover:border-indigo-500/50 hover:text-indigo-300 hover:bg-gray-700/50'
+                                                                ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] ring-indigo-400 scale-110 z-10'
+                                                                : spot?.spot_type === 'ev'
+                                                                    ? 'bg-green-900/20 text-green-400 ring-green-500/50 hover:bg-green-900/40 hover:text-green-300'
+                                                                    : spot?.spot_type === 'vip'
+                                                                        ? 'bg-yellow-900/20 text-yellow-400 ring-yellow-500/50 hover:bg-yellow-900/40 hover:text-yellow-300'
+                                                                        : 'bg-gray-800/50 text-gray-400 ring-gray-700 hover:ring-indigo-500/50 hover:text-indigo-300 hover:bg-gray-700/50'
                                                         }
                           `}
                                                 >
-                                                    {isBooked ? 'X' : `${String.fromCharCode(65 + r)}${c + 1}`}
+                                                    {spot?.spot_type === 'ev' && <span className="absolute top-1 right-1 text-[8px]">⚡</span>}
+                                                    {isBooked ? 'X' : (spot?.label || `${String.fromCharCode(65 + r)}${c + 1}`)}
                                                 </button>
                                             );
                                         })
@@ -443,10 +455,22 @@ const BookingPage: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="flex justify-center gap-6 mt-6 text-sm">
+                        <div className="flex justify-center flex-wrap gap-6 mt-6 text-sm">
                             <div className="flex items-center gap-2">
                                 <div className="w-3 h-3 bg-gray-800 border border-gray-600 rounded-full"></div>
                                 <span className="text-gray-400">Available</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-green-900/50 border border-green-500/50 rounded-full"></div>
+                                <span className="text-gray-400">EV Station</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-yellow-900/50 border border-yellow-500/50 rounded-full"></div>
+                                <span className="text-gray-400">VIP</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-indigo-600 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                                <span className="text-white font-medium">Selected</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="w-3 h-3 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
@@ -538,7 +562,7 @@ const BookingPage: React.FC = () => {
                                         <div className="flex justify-between py-2 border-b border-white/10">
                                             <span className="text-gray-400">Spot</span>
                                             <span className="font-mono font-bold text-indigo-300">
-                                                {String.fromCharCode(65 + (selectedSpot?.row || 0))}{((selectedSpot?.col || 0) + 1)}
+                                                {selectedSpot?.label || `${String.fromCharCode(65 + (selectedSpot?.row || 0))}${((selectedSpot?.col || 0) + 1)}`}
                                             </span>
                                         </div>
                                         <div className="flex justify-between py-2 border-b border-white/10">
@@ -555,6 +579,14 @@ const BookingPage: React.FC = () => {
                                             <span className="text-gray-400">Duration</span>
                                             <span className="font-medium text-white">{totals.duration} Hours</span>
                                         </div>
+                                        {totals.multiplier > 1 && (
+                                            <div className="flex justify-between py-2 border-b border-white/10">
+                                                <span className="text-gray-400">Spot Type</span>
+                                                <span className="font-medium text-yellow-400">
+                                                    {selectedSpot?.spot_type.toUpperCase()} ({totals.multiplier}x)
+                                                </span>
+                                            </div>
+                                        )}
 
                                         {/* Promo Code Section */}
                                         <div className="pt-2">

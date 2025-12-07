@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, ToggleLeft, ToggleRight, Trash2, X } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, ToggleLeft, ToggleRight, Trash2, X, PieChart } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface Booking {
     id: number;
@@ -34,7 +35,7 @@ interface ConfigItem {
 }
 
 const AdminDashboard: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'layout' | 'bookings' | 'promos' | 'settings'>('layout');
+    const [activeTab, setActiveTab] = useState<'layout' | 'bookings' | 'analytics' | 'promos' | 'settings'>('layout');
     const [loading, setLoading] = useState(false);
 
     // Data States
@@ -42,6 +43,27 @@ const AdminDashboard: React.FC = () => {
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [promos, setPromos] = useState<PromoCode[]>([]);
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
+
+    interface AnalyticsData {
+        total_revenue: number;
+        total_bookings: number;
+        active_bookings: number;
+        revenue_chart: { name: string; value: number }[];
+        occupancy_chart: { name: string; value: number }[];
+    }
+    const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+
+    interface Spot {
+        id: number;
+        row: number;
+        col: number;
+        is_booked: boolean;
+        label: string;
+        spot_type: string;
+    }
+    const [spots, setSpots] = useState<Spot[]>([]);
+    const [editingSpot, setEditingSpot] = useState<Spot | null>(null);
+    const [showSpotModal, setShowSpotModal] = useState(false);
 
     // Forms
     const [newPromo, setNewPromo] = useState<{
@@ -91,29 +113,33 @@ const AdminDashboard: React.FC = () => {
         closeDialog();
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [layoutRes, bookingsRes, promosRes, configsRes] = await Promise.all([
+            const [layoutRes, bookingsRes, promosRes, configsRes, analyticsRes] = await Promise.all([
                 parking.getLayout(),
                 parking.getAllBookings(),
                 admin.getPromos(),
-                admin.getConfig()
+                admin.getConfig(),
+                admin.getAnalytics()
             ]);
-            setLayout({ rows: layoutRes.data.rows, cols: layoutRes.data.cols });
+
+            setLayout(prev => ({ ...prev, rows: layoutRes.data.rows, cols: layoutRes.data.cols }));
+            setSpots(layoutRes.data.spots);
             setBookings(bookingsRes.data);
             setPromos(promosRes.data);
-            setConfigs(configsRes.data);
+            setConfigs(configsRes.data.configs);
+            setAnalytics(analyticsRes.data);
         } catch (error) {
             console.error("Failed to fetch data", error);
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchData();
+    }, []);
 
     const handleSaveLayout = async () => {
         try {
@@ -123,6 +149,22 @@ const AdminDashboard: React.FC = () => {
         } catch (error) {
             console.error("Failed to update layout", error);
             showDialog("Error", "Failed to update layout", "error");
+        }
+    };
+
+    const handleUpdateSpot = async () => {
+        if (!editingSpot) return;
+        try {
+            await admin.updateSpot(editingSpot.id, {
+                label: editingSpot.label,
+                spot_type: editingSpot.spot_type
+            });
+            setShowSpotModal(false);
+            showDialog("Success", "Spot updated successfully!", "alert");
+            fetchData();
+        } catch (error) {
+            console.error("Failed to update spot", error);
+            showDialog("Error", "Failed to update spot", "error");
         }
     };
 
@@ -182,15 +224,7 @@ const AdminDashboard: React.FC = () => {
     };
 
 
-    const handleTogglePromo = async (id: number) => {
-        try {
-            await admin.togglePromo(id);
-            fetchData();
-        } catch (error) {
-            console.error("Failed to toggle promo", error);
-            showDialog("Error", "Failed to toggle promo status", "error");
-        }
-    };
+
 
     const updateConfigValue = (key: string, value: string) => {
         setConfigs(configs.map(c => c.key === key ? { ...c, value } : c));
@@ -211,6 +245,7 @@ const AdminDashboard: React.FC = () => {
                         {[
                             { id: 'layout', label: 'Layout', icon: LayoutGrid },
                             { id: 'bookings', label: 'Bookings', icon: List },
+                            { id: 'analytics', label: 'Analytics', icon: PieChart },
                             { id: 'promos', label: 'Promo Codes', icon: Tag },
                             { id: 'settings', label: 'Settings', icon: Sliders },
                         ].map((tab) => (
@@ -274,6 +309,65 @@ const AdminDashboard: React.FC = () => {
                                 <Save size={20} />
                                 Save Configuration
                             </button>
+
+                            <div className="mt-12 pt-8 border-t border-white/5">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white">Spot Management</h3>
+                                        <p className="text-sm text-gray-400">Click a spot to configure custom labels and types</p>
+                                    </div>
+                                    <div className="flex gap-4 text-xs font-medium">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 bg-gray-800 border border-gray-600 rounded-full"></div>
+                                            <span className="text-gray-400">Standard</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 bg-green-900/50 border border-green-500/50 rounded-full"></div>
+                                            <span className="text-green-400">EV Station</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3 h-3 bg-yellow-900/50 border border-yellow-500/50 rounded-full"></div>
+                                            <span className="text-yellow-400">VIP</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    className="grid gap-3 p-4 bg-gray-900/50 rounded-2xl border border-white/5"
+                                    style={{
+                                        gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`
+                                    }}
+                                >
+                                    {spots.map((spot) => (
+                                        <button
+                                            key={spot.id}
+                                            onClick={() => {
+                                                setEditingSpot(spot);
+                                                setShowSpotModal(true);
+                                            }}
+                                            className={`
+                                                aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all duration-200
+                                                border relative group hover:scale-105
+                                                ${spot.spot_type === 'ev'
+                                                    ? 'bg-green-900/20 border-green-500/30 text-green-400 hover:bg-green-900/40 hover:border-green-500/50'
+                                                    : spot.spot_type === 'vip'
+                                                        ? 'bg-yellow-900/20 border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/40 hover:border-yellow-500/50'
+                                                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:border-gray-500 hover:text-white'
+                                                }
+                                            `}
+                                        >
+                                            {spot.spot_type === 'ev' && (
+                                                <span className="absolute top-1 right-1 text-[8px] opacity-70">⚡</span>
+                                            )}
+                                            {spot.spot_type === 'vip' && (
+                                                <span className="absolute top-1 right-1 text-[8px] opacity-70">👑</span>
+                                            )}
+                                            <span className="text-sm">{spot.label || `${spot.row}-${spot.col}`}</span>
+                                            <span className="text-[10px] font-normal opacity-50 uppercase mt-0.5">{spot.spot_type}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -340,6 +434,58 @@ const AdminDashboard: React.FC = () => {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+
+                    {activeTab === 'analytics' && analytics && (
+                        <div className="space-y-8">
+                            {/* KPI Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 p-6 rounded-2xl border border-indigo-500/20">
+                                    <h3 className="text-gray-400 text-sm uppercase tracking-wider font-medium mb-1">Total Revenue</h3>
+                                    <div className="text-3xl font-bold text-white">${analytics.total_revenue.toFixed(2)}</div>
+                                </div>
+                                <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 p-6 rounded-2xl border border-emerald-500/20">
+                                    <h3 className="text-gray-400 text-sm uppercase tracking-wider font-medium mb-1">Total Bookings</h3>
+                                    <div className="text-3xl font-bold text-white">{analytics.total_bookings}</div>
+                                </div>
+                                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-6 rounded-2xl border border-blue-500/20">
+                                    <h3 className="text-gray-400 text-sm uppercase tracking-wider font-medium mb-1">Active Now</h3>
+                                    <div className="text-3xl font-bold text-white">{analytics.active_bookings}</div>
+                                </div>
+                            </div>
+
+                            {/* Charts */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                <div className="bg-gray-800/30 p-6 rounded-2xl border border-white/5">
+                                    <h3 className="text-lg font-bold text-white mb-6">Revenue (Last 7 Days)</h3>
+                                    <div className="h-[300px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={analytics.revenue_chart}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                                <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
+                                                <YAxis stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff', borderRadius: '0.5rem' }} />
+                                                <Line type="monotone" dataKey="value" stroke="#818cf8" strokeWidth={3} dot={{ r: 4, fill: '#818cf8' }} activeDot={{ r: 8 }} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                                <div className="bg-gray-800/30 p-6 rounded-2xl border border-white/5">
+                                    <h3 className="text-lg font-bold text-white mb-6">Peak Hours</h3>
+                                    <div className="h-[300px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={analytics.occupancy_chart}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                                                <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
+                                                <YAxis stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
+                                                <Tooltip cursor={{ fill: '#374151' }} contentStyle={{ backgroundColor: '#1F2937', borderColor: '#374151', color: '#fff', borderRadius: '0.5rem' }} />
+                                                <Bar dataKey="value" fill="#34d399" radius={[4, 4, 0, 0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -514,6 +660,60 @@ const AdminDashboard: React.FC = () => {
                     )}
                 </div>
             </div>
+            {/* Spot Edit Modal */}
+            {showSpotModal && editingSpot && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative shadow-xl">
+                        <button
+                            onClick={() => setShowSpotModal(false)}
+                            className="absolute right-4 top-4 text-gray-400 hover:text-white"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <h2 className="text-xl font-bold text-white mb-6">Edit Spot {editingSpot.label || `#${editingSpot.id}`}</h2>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Label</label>
+                                <input
+                                    type="text"
+                                    value={editingSpot.label}
+                                    onChange={(e) => setEditingSpot({ ...editingSpot, label: e.target.value })}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="e.g. A1, EV-1"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Spot Type</label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {['standard', 'ev', 'vip'].map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => setEditingSpot({ ...editingSpot, spot_type: type })}
+                                            className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-all ${editingSpot.spot_type === type
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
+                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleUpdateSpot}
+                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
+                            >
+                                Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Custom Dialog */}
             {dialog.isOpen && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
