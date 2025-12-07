@@ -331,6 +331,7 @@ class PromoCodeCreate(BaseModel):
     discount_value: float
     expiry_date: datetime
     usage_limit: int = 100
+    is_active: bool = True
 
 @app.get("/admin/promos", response_model=List[PromoCodeResponse])
 def get_all_promos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -367,7 +368,7 @@ def create_promo(promo_data: PromoCodeCreate, current_user: User = Depends(get_c
         discount_value=promo_data.discount_value,
         expiry_date=promo_data.expiry_date,
         usage_limit=promo_data.usage_limit,
-        is_active=True
+        is_active=promo_data.is_active
     )
     db.add(new_promo)
     db.commit()
@@ -397,6 +398,56 @@ def toggle_promo(promo_id: int, current_user: User = Depends(get_current_user), 
     promo.is_active = not promo.is_active
     db.commit()
     return {"message": f"Promo code {'activated' if promo.is_active else 'deactivated'}", "is_active": promo.is_active}
+
+@app.delete("/admin/promos/{promo_id}")
+def delete_promo(promo_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    promo = db.query(PromoCode).filter(PromoCode.id == promo_id).first()
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+        
+    db.delete(promo)
+    db.commit()
+    return {"message": "Promo code deleted successfully"}
+
+@app.put("/admin/promos/{promo_id}/update", response_model=PromoCodeResponse)
+def update_promo(promo_id: int, promo_data: PromoCodeCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    promo = db.query(PromoCode).filter(PromoCode.id == promo_id).first()
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo code not found")
+
+    # Check for code uniqueness if changed
+    if promo.code != promo_data.code.upper():
+        existing = db.query(PromoCode).filter(PromoCode.code == promo_data.code.upper()).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Promo code already exists")
+    
+    promo.code = promo_data.code.upper()
+    promo.discount_type = promo_data.discount_type
+    promo.discount_value = promo_data.discount_value
+    promo.expiry_date = promo_data.expiry_date
+    promo.usage_limit = promo_data.usage_limit
+    promo.is_active = promo_data.is_active
+    
+    db.commit()
+    db.refresh(promo)
+    
+    return PromoCodeResponse(
+        id=promo.id,
+        code=promo.code,
+        discount_type=promo.discount_type,
+        discount_value=float(promo.discount_value),
+        expiry_date=promo.expiry_date,
+        usage_limit=promo.usage_limit,
+        current_uses=promo.current_uses,
+        is_active=promo.is_active,
+        description=f"{promo.discount_value}% OFF" if promo.discount_type == "percentage" else f"FLAT {promo.discount_value} OFF"
+    )
 
 @app.post("/promos/check", response_model=PromoCodeResponse)
 def check_promo_code(code: str, db: Session = Depends(get_db)):

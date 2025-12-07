@@ -175,10 +175,18 @@ class LayoutConfig(BaseModel):
     cols: int
 
 class PromoCodeResponse(BaseModel):
+    id: Optional[int] = None
     code: str
     discount_type: str
     discount_value: float
     description: Optional[str] = None
+    expiry_date: Optional[datetime] = None
+    usage_limit: int = 100
+    current_uses: int = 0
+    is_active: bool = True
+
+    class Config:
+        from_attributes = True
 
 class VehicleCreate(BaseModel):
     license_plate: str = Field(..., min_length=1, max_length=20)

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, AlertCircle, LayoutGrid, List, Tag, Sliders, Plus, ToggleLeft, ToggleRight, Trash2, X } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, ToggleLeft, ToggleRight, Trash2, X } from 'lucide-react';
 
 interface Booking {
     id: number;
@@ -44,14 +44,23 @@ const AdminDashboard: React.FC = () => {
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
 
     // Forms
-    const [newPromo, setNewPromo] = useState({
+    const [newPromo, setNewPromo] = useState<{
+        code: string;
+        discount_type: string;
+        discount_value: number;
+        expiry_date: string;
+        usage_limit: number;
+        is_active: boolean;
+    }>({
         code: '',
         discount_type: 'percentage',
         discount_value: 0,
         expiry_date: '',
-        usage_limit: 100
+        usage_limit: 100,
+        is_active: true
     });
     const [showPromoModal, setShowPromoModal] = useState(false);
+    const [editingPromoId, setEditingPromoId] = useState<number | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -100,18 +109,37 @@ const AdminDashboard: React.FC = () => {
     const handleAddPromo = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await admin.createPromo(newPromo);
+            if (editingPromoId) {
+                await admin.updatePromo(editingPromoId, newPromo);
+                alert("Promo updated successfully!");
+            } else {
+                await admin.createPromo(newPromo);
+                alert("Promo created successfully!");
+            }
             setShowPromoModal(false);
+            setEditingPromoId(null);
             setNewPromo({
                 code: '',
                 discount_type: 'percentage',
                 discount_value: 0,
                 expiry_date: '',
-                usage_limit: 100
+                usage_limit: 100,
+                is_active: true
             });
             fetchData();
         } catch (error: any) {
-            alert(error.response?.data?.detail || "Failed to create promo");
+            alert(error.response?.data?.detail || "Failed to save promo");
+        }
+    };
+
+    const handleDeletePromo = async (id: number) => {
+        if (!window.confirm("Are you sure you want to delete this promo code?")) return;
+        try {
+            await admin.deletePromo(id);
+            fetchData();
+        } catch (error) {
+            console.error("Failed to delete promo", error);
+            alert("Failed to delete promo");
         }
     };
 
@@ -280,7 +308,18 @@ const AdminDashboard: React.FC = () => {
                             <div className="flex justify-between items-center mb-6">
                                 <h3 className="text-xl font-bold text-white">Active Promo Codes</h3>
                                 <button
-                                    onClick={() => setShowPromoModal(true)}
+                                    onClick={() => {
+                                        setNewPromo({
+                                            code: '',
+                                            discount_type: 'percentage',
+                                            discount_value: 0,
+                                            expiry_date: '',
+                                            usage_limit: 100,
+                                            is_active: true
+                                        });
+                                        setEditingPromoId(null);
+                                        setShowPromoModal(true);
+                                    }}
                                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all"
                                 >
                                     <Plus size={18} />
@@ -290,17 +329,29 @@ const AdminDashboard: React.FC = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {promos.map(promo => (
-                                    <div key={promo.id} className="p-4 bg-white/5 border border-white/10 rounded-xl relative group">
+                                    <button
+                                        key={promo.id}
+                                        onClick={() => {
+                                            setNewPromo({
+                                                code: promo.code,
+                                                discount_type: promo.discount_type,
+                                                discount_value: promo.discount_value,
+                                                expiry_date: promo.expiry_date ? promo.expiry_date.split('T')[0] : '',
+                                                usage_limit: promo.usage_limit,
+                                                is_active: promo.is_active
+                                            });
+                                            setEditingPromoId(promo.id);
+                                            setShowPromoModal(true);
+                                        }}
+                                        className="p-4 bg-white/5 border border-white/10 rounded-xl relative group hover:bg-white/10 transition-all text-left w-full"
+                                    >
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="font-mono text-lg font-bold text-indigo-400 tracking-wider">
                                                 {promo.code}
                                             </div>
-                                            <button
-                                                onClick={() => handleTogglePromo(promo.id)}
-                                                className={`text-2xl transition-colors ${promo.is_active ? 'text-green-400' : 'text-gray-600'}`}
-                                            >
-                                                {promo.is_active ? <ToggleRight /> : <ToggleLeft />}
-                                            </button>
+                                            <div className={`text-xs px-2 py-1 rounded-full border ${promo.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                                {promo.is_active ? 'ACTIVE' : 'INACTIVE'}
+                                            </div>
                                         </div>
                                         <div className="text-white font-bold text-2xl mb-1">
                                             {promo.description}
@@ -309,7 +360,7 @@ const AdminDashboard: React.FC = () => {
                                             <p>Expires: {new Date(promo.expiry_date).toLocaleDateString()}</p>
                                             <p>Uses: {promo.current_uses} / {promo.usage_limit}</p>
                                         </div>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
 
@@ -319,7 +370,9 @@ const AdminDashboard: React.FC = () => {
                                         <button onClick={() => setShowPromoModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
                                             <X size={20} />
                                         </button>
-                                        <h3 className="text-xl font-bold text-white mb-6">Create Promo Code</h3>
+                                        <h3 className="text-xl font-bold text-white mb-6">
+                                            {editingPromoId ? "Edit Promo Code" : "Create Promo Code"}
+                                        </h3>
                                         <form onSubmit={handleAddPromo} className="space-y-4">
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Code</label>
@@ -348,7 +401,34 @@ const AdminDashboard: React.FC = () => {
                                                     <input required type="number" value={newPromo.usage_limit} onChange={e => setNewPromo({ ...newPromo, usage_limit: parseInt(e.target.value) })} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white" />
                                                 </div>
                                             </div>
-                                            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4">Create Promo</button>
+
+                                            <div className="flex items-center justify-between bg-gray-800 p-3 rounded-lg border border-gray-700">
+                                                <span className="text-sm text-gray-300 font-medium">Status</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNewPromo({ ...newPromo, is_active: !newPromo.is_active })}
+                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${newPromo.is_active ? 'bg-green-500' : 'bg-gray-600'}`}
+                                                >
+                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newPromo.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                </button>
+                                            </div>
+
+                                            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4">
+                                                {editingPromoId ? "Update Promo" : "Create Promo"}
+                                            </button>
+
+                                            {editingPromoId && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleDeletePromo(editingPromoId);
+                                                        setShowPromoModal(false);
+                                                    }}
+                                                    className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-3 rounded-xl border border-red-500/20 transition-colors"
+                                                >
+                                                    Delete Promo Code
+                                                </button>
+                                            )}
                                         </form>
                                     </div>
                                 </div>
