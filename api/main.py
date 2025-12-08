@@ -47,11 +47,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
-# Database Setup
-SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from database import engine, SessionLocal, get_db
 
 # Auth Setup
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -81,22 +77,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+from routers import payment
 
+app.include_router(payment.router)
 
-
-
-# Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# Auth Helpers
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
+def get_password_hash(password):
     if len(password.encode('utf-8')) > 72:
         password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
@@ -867,6 +855,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         end_time=booking.end_time.replace(tzinfo=timezone.utc),
         payment_method=booking.payment_method,
         payment_amount=float(booking.payment_amount),
+        payment_status=booking.payment_status,
         discount_amount=float(booking.discount_amount),
         promo_code=booking.promo_code.code if booking.promo_code else None,
         status=booking.status,
@@ -909,6 +898,7 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             end_time=response_end,
             payment_method=booking.payment_method,
             payment_amount=float(booking.payment_amount),
+            payment_status=booking.payment_status,
             discount_amount=float(booking.discount_amount),
             promo_code=booking.promo_code.code if booking.promo_code else None,
             status=booking.status,
@@ -974,6 +964,7 @@ def close_booking(booking_id: int, current_user: User = Depends(get_current_user
         end_time=response_end,
         payment_method=booking.payment_method,
         payment_amount=float(booking.payment_amount),
+        payment_status=booking.payment_status,
         discount_amount=float(booking.discount_amount),
         promo_code=booking.promo_code.code if booking.promo_code else None,
         status=booking.status,
@@ -1017,6 +1008,7 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             end_time=response_end,
             payment_method=booking.payment_method,
             payment_amount=float(booking.payment_amount),
+            payment_status=booking.payment_status,
             discount_amount=float(booking.discount_amount),
             promo_code=booking.promo_code.code if booking.promo_code else None,
             status=booking.status,

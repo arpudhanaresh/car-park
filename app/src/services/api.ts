@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-//const API_URL = 'http://localhost:8000';
-const API_URL = 'https://car-api.arpudhacheck.me';
+const API_URL = 'http://localhost:8000';
+//const API_URL = 'https://car-api.arpudhacheck.me';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -55,6 +55,7 @@ export const parking = {
   closeBooking: (id: number) => api.post(`/admin/bookings/${id}/close`),
   checkPromo: (code: string) => api.post(`/promos/check?code=${code}`),
   getPublicConfig: () => api.get('/config/public'),
+  initiatePayment: (bookingId: number) => api.post(`/payment/initiate/${bookingId}`),
 };
 
 export const vehicles = {

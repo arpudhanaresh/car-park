@@ -251,7 +251,7 @@ const BookingPage: React.FC = () => {
         const localEndDateTime = new Date(`${endDate}T${endTime}`);
 
         try {
-            await parking.createBooking({
+            const response = await parking.createBooking({
                 row: selectedSpot.row,
                 col: selectedSpot.col,
                 license_plate: vehicleData.license_plate,
@@ -273,11 +273,31 @@ const BookingPage: React.FC = () => {
                 payment_amount: totals.subtotal,
                 promo_code: appliedPromo?.code
             });
-            navigate('/dashboard');
+
+            // Initiate RinggitPay Payment
+            const bookingId = response.data.id;
+            const paymentResponse = await parking.initiatePayment(bookingId);
+            const { action, fields } = paymentResponse.data;
+
+            // Create and submit hidden form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = action;
+
+            Object.keys(fields).forEach(key => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = fields[key];
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+
         } catch (error: any) {
             console.error("Booking failed", error);
             alert(error.response?.data?.detail || "Booking failed");
-        } finally {
             setLoading(false);
         }
     };

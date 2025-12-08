@@ -93,6 +93,7 @@ class Booking(Base):
     end_time = Column(DateTime, nullable=False)
     payment_method = Column(String(50), nullable=False)
     payment_amount = Column(Numeric(10, 2), nullable=False)
+    payment_status = Column(String(20), default="pending") # pending, paid, failed
     discount_amount = Column(Numeric(10, 2), default=0)
     promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), nullable=True)
     status = Column(String(20), default="active")
@@ -258,6 +259,7 @@ class BookingResponse(BaseModel):
     end_time: datetime
     payment_method: str
     payment_amount: float
+    payment_status: str
     discount_amount: float = 0.0
     promo_code: Optional[str] = None
     status: str

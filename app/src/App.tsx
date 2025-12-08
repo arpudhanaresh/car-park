@@ -7,6 +7,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import CustomerDashboard from './pages/CustomerDashboard';
 import BookingPage from './pages/BookingPage';
 import MyVehicles from './pages/MyVehicles';
+import PaymentStatusPage from './pages/PaymentStatusPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({
   children,
@@ -63,6 +64,10 @@ const AppRoutes: React.FC = () => {
               <MyVehicles />
             </ProtectedRoute>
           }
+        />
+        <Route
+          path="/payment-status"
+          element={<PaymentStatusPage />}
         />
       </Route>
     </Routes>
