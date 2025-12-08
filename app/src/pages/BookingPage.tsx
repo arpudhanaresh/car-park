@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { parking, vehicles } from '../services/api';
 import { Clock, MapPin, Car, Check, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
@@ -21,7 +20,7 @@ interface Layout {
 }
 
 const BookingPage: React.FC = () => {
-    const navigate = useNavigate();
+    
     const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
