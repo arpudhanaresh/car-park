@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.cardpark.app',
-  appName: 'Card Park',
+  appName: 'Car Park',
   webDir: 'dist'
 };
 

@@ -408,9 +408,9 @@ const BookingPage: React.FC = () => {
                         </h2>
 
                         {layout ? (
-                            <div className="flex justify-center overflow-x-auto pb-4">
+                            <div className="flex justify-center overflow-auto pb-4 max-h-[60vh]">
                                 <div
-                                    className="grid gap-3 p-6 bg-gray-800/30 rounded-2xl border border-gray-700/50"
+                                    className="grid gap-3 p-6 bg-gray-800/30 rounded-2xl border border-gray-700/50 min-w-max"
                                     style={{
                                         gridTemplateColumns: `repeat(${layout.cols}, minmax(50px, 1fr))`
                                     }}
