@@ -4,6 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.cardpark.app',
   appName: 'ParkPro',
   webDir: 'dist',
+  server: {
+    allowNavigation: ["*"]
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 3000,
