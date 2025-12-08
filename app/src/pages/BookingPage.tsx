@@ -486,158 +486,160 @@ const BookingPage: React.FC = () => {
 
                 {/* Step 3: Details & Payment */}
                 {step === 3 && (
-                    <div className="p-8">
-                        <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-white">
-                            <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
-                                <Car size={24} />
-                            </div>
-                            Vehicle & Payment Details
-                        </h2>
+                    <div className="overflow-y-auto max-h-[75vh]">
+                        <div className="p-5 md:p-8">
+                            <h2 className="text-xl font-bold mb-6 flex items-center gap-3 text-white">
+                                <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                                    <Car size={24} />
+                                </div>
+                                Vehicle & Payment Details
+                            </h2>
 
-                        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-                            <div className="space-y-6">
-                                {myVehicles.length > 0 && (
-                                    <div className="space-y-2">
-                                        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Select Saved Vehicle</label>
-                                        <select
-                                            onChange={handleVehicleSelect}
-                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all appearance-none"
-                                        >
-                                            <option value="">-- Select a vehicle --</option>
-                                            {myVehicles.map(v => (
-                                                <option key={v.id} value={v.license_plate}>{v.license_plate} - {v.make} {v.model}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                                <div className="space-y-2">
-                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">License Plate</label>
-                                    <input
-                                        type="text"
-                                        value={vehicleData.license_plate}
-                                        onChange={(e) => setVehicleData({ ...vehicleData, license_plate: e.target.value.toUpperCase() })}
-                                        onBlur={handleLicenseBlur}
-                                        placeholder="ABC1234"
-                                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all font-mono uppercase"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Owner Name</label>
-                                    <input
-                                        type="text"
-                                        value={vehicleData.name}
-                                        onChange={(e) => setVehicleData({ ...vehicleData, name: e.target.value })}
-                                        placeholder="Full Name"
-                                        className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</label>
+                            <div className="grid lg:grid-cols-2 gap-6 lg:gap-12">
+                                <div className="space-y-4">
+                                    {myVehicles.length > 0 && (
+                                        <div className="space-y-1">
+                                            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">Select Saved Vehicle</label>
+                                            <select
+                                                onChange={handleVehicleSelect}
+                                                className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all appearance-none"
+                                            >
+                                                <option value="">-- Select a vehicle --</option>
+                                                {myVehicles.map(v => (
+                                                    <option key={v.id} value={v.license_plate}>{v.license_plate} - {v.make} {v.model}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                    <div className="space-y-1">
+                                        <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">License Plate</label>
                                         <input
-                                            type="tel"
-                                            value={vehicleData.phone}
-                                            onChange={(e) => setVehicleData({ ...vehicleData, phone: e.target.value })}
-                                            placeholder="+60 12-345 6789"
-                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                            type="text"
+                                            value={vehicleData.license_plate}
+                                            onChange={(e) => setVehicleData({ ...vehicleData, license_plate: e.target.value.toUpperCase() })}
+                                            onBlur={handleLicenseBlur}
+                                            placeholder="ABC1234"
+                                            className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all font-mono uppercase"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Email</label>
+                                    <div className="space-y-1">
+                                        <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">Owner Name</label>
                                         <input
-                                            type="email"
-                                            value={vehicleData.email}
-                                            onChange={(e) => setVehicleData({ ...vehicleData, email: e.target.value })}
-                                            placeholder="email@example.com"
-                                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                            type="text"
+                                            value={vehicleData.name}
+                                            onChange={(e) => setVehicleData({ ...vehicleData, name: e.target.value })}
+                                            placeholder="Full Name"
+                                            className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
                                         />
                                     </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">Phone</label>
+                                            <input
+                                                type="tel"
+                                                value={vehicleData.phone}
+                                                onChange={(e) => setVehicleData({ ...vehicleData, phone: e.target.value })}
+                                                placeholder="+60 12-345 6789"
+                                                className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">Email</label>
+                                            <input
+                                                type="email"
+                                                value={vehicleData.email}
+                                                onChange={(e) => setVehicleData({ ...vehicleData, email: e.target.value })}
+                                                placeholder="email@example.com"
+                                                className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="space-y-6">
-                                <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-6 rounded-2xl border border-indigo-500/20">
-                                    <h3 className="font-bold text-lg text-white mb-4">Booking Summary</h3>
-                                    <div className="space-y-3 text-sm">
-                                        <div className="flex justify-between py-2 border-b border-white/10">
-                                            <span className="text-gray-400">Spot</span>
-                                            <span className="font-mono font-bold text-indigo-300">
-                                                {selectedSpot?.label || `${String.fromCharCode(65 + (selectedSpot?.row || 0))}${((selectedSpot?.col || 0) + 1)}`}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between py-2 border-b border-white/10">
-                                            <span className="text-gray-400">Start Time</span>
-                                            <span className="font-medium text-white">{date} {startTime}</span>
-                                        </div>
-                                        <div className="flex justify-between py-2 border-b border-white/10">
-                                            <span className="text-gray-400">End Time</span>
-                                            <span className="font-medium text-white">
-                                                {endDate} {endTime}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between py-2 border-b border-white/10">
-                                            <span className="text-gray-400">Duration</span>
-                                            <span className="font-medium text-white">{totals.duration} Hours</span>
-                                        </div>
-                                        {totals.multiplier > 1 && (
+                                <div className="space-y-6">
+                                    <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/20 p-6 rounded-2xl border border-indigo-500/20">
+                                        <h3 className="font-bold text-lg text-white mb-4">Booking Summary</h3>
+                                        <div className="space-y-3 text-sm">
                                             <div className="flex justify-between py-2 border-b border-white/10">
-                                                <span className="text-gray-400">Spot Type</span>
-                                                <span className="font-medium text-yellow-400">
-                                                    {selectedSpot?.spot_type.toUpperCase()} ({totals.multiplier}x)
+                                                <span className="text-gray-400">Spot</span>
+                                                <span className="font-mono font-bold text-indigo-300">
+                                                    {selectedSpot?.label || `${String.fromCharCode(65 + (selectedSpot?.row || 0))}${((selectedSpot?.col || 0) + 1)}`}
                                                 </span>
                                             </div>
-                                        )}
-
-                                        {/* Promo Code Section */}
-                                        <div className="pt-2">
-                                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Promo Code</label>
-                                            <div className="flex gap-2">
-                                                <input
-                                                    type="text"
-                                                    value={promoCode}
-                                                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                                                    placeholder="Enter code"
-                                                    disabled={!!appliedPromo}
-                                                    className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-indigo-500"
-                                                />
-                                                {appliedPromo ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            setAppliedPromo(null);
-                                                            setPromoCode('');
-                                                        }}
-                                                        className="px-3 py-2 bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg text-xs font-bold hover:bg-red-900/50 transition-colors"
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={handleApplyPromo}
-                                                        disabled={!promoCode || promoLoading}
-                                                        className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors disabled:opacity-50"
-                                                    >
-                                                        {promoLoading ? 'Checking...' : 'Apply'}
-                                                    </button>
-                                                )}
+                                            <div className="flex justify-between py-2 border-b border-white/10">
+                                                <span className="text-gray-400">Start Time</span>
+                                                <span className="font-medium text-white">{date} {startTime}</span>
                                             </div>
-                                            {promoError && <p className="text-red-400 text-xs mt-1">{promoError}</p>}
-                                            {appliedPromo && <p className="text-green-400 text-xs mt-1">Code applied! {appliedPromo.type === 'percentage' ? `${appliedPromo.discount}% OFF` : `RM ${appliedPromo.discount} OFF`}</p>}
-                                        </div>
-
-                                        <div className="pt-4 space-y-2">
-                                            <div className="flex justify-between items-center text-gray-400 text-sm">
-                                                <span>Subtotal</span>
-                                                <span>RM {totals.subtotal.toFixed(2)}</span>
+                                            <div className="flex justify-between py-2 border-b border-white/10">
+                                                <span className="text-gray-400">End Time</span>
+                                                <span className="font-medium text-white">
+                                                    {endDate} {endTime}
+                                                </span>
                                             </div>
-                                            {totals.discount > 0 && (
-                                                <div className="flex justify-between items-center text-green-400 text-sm">
-                                                    <span>Discount</span>
-                                                    <span>- RM {totals.discount.toFixed(2)}</span>
+                                            <div className="flex justify-between py-2 border-b border-white/10">
+                                                <span className="text-gray-400">Duration</span>
+                                                <span className="font-medium text-white">{totals.duration} Hours</span>
+                                            </div>
+                                            {totals.multiplier > 1 && (
+                                                <div className="flex justify-between py-2 border-b border-white/10">
+                                                    <span className="text-gray-400">Spot Type</span>
+                                                    <span className="font-medium text-yellow-400">
+                                                        {selectedSpot?.spot_type.toUpperCase()} ({totals.multiplier}x)
+                                                    </span>
                                                 </div>
                                             )}
-                                            <div className="flex justify-between items-center pt-2 border-t border-white/10">
-                                                <span className="font-bold text-gray-200">Total</span>
-                                                <span className="text-2xl font-bold text-indigo-400 text-glow">RM {totals.total.toFixed(2)}</span>
+
+                                            {/* Promo Code Section */}
+                                            <div className="pt-2">
+                                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Promo Code</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={promoCode}
+                                                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                                                        placeholder="Enter code"
+                                                        disabled={!!appliedPromo}
+                                                        className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:border-indigo-500"
+                                                    />
+                                                    {appliedPromo ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setAppliedPromo(null);
+                                                                setPromoCode('');
+                                                            }}
+                                                            className="px-3 py-2 bg-red-900/30 text-red-400 border border-red-900/50 rounded-lg text-xs font-bold hover:bg-red-900/50 transition-colors"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={handleApplyPromo}
+                                                            disabled={!promoCode || promoLoading}
+                                                            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {promoLoading ? 'Checking...' : 'Apply'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {promoError && <p className="text-red-400 text-xs mt-1">{promoError}</p>}
+                                                {appliedPromo && <p className="text-green-400 text-xs mt-1">Code applied! {appliedPromo.type === 'percentage' ? `${appliedPromo.discount}% OFF` : `RM ${appliedPromo.discount} OFF`}</p>}
+                                            </div>
+
+                                            <div className="pt-4 space-y-2">
+                                                <div className="flex justify-between items-center text-gray-400 text-sm">
+                                                    <span>Subtotal</span>
+                                                    <span>RM {totals.subtotal.toFixed(2)}</span>
+                                                </div>
+                                                {totals.discount > 0 && (
+                                                    <div className="flex justify-between items-center text-green-400 text-sm">
+                                                        <span>Discount</span>
+                                                        <span>- RM {totals.discount.toFixed(2)}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center pt-2 border-t border-white/10">
+                                                    <span className="font-bold text-gray-200">Total</span>
+                                                    <span className="text-2xl font-bold text-indigo-400 text-glow">RM {totals.total.toFixed(2)}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -704,7 +706,7 @@ const BookingPage: React.FC = () => {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
