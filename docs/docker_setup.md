@@ -76,6 +76,16 @@ docker run -d -p 8111:8111 --name parking-api arpudhanaresh/card-park-api:latest
 ```
 
 > **Note:** If you need to override the baked-in settings (e.g., connect to a different database host), you can still pass environment variables:
-> ```bash
-> docker run -d -p 8111:8111 -e DB_HOST=production.db.host --name parking-api arpudhanaresh/card-park-api:latest
 > ```
+
+---
+
+## 4. Update & Redeploy
+
+To pull the latest version, remove the old container, and start fresh:
+
+```bash
+docker rm -f $(docker ps -aq --filter ancestor=arpudhanaresh/card-park-api:latest) && docker rmi -f arpudhanaresh/card-park-api:latest
+
+docker run -d -p 8111:8111 --name parking-api arpudhanaresh/card-park-api:latest
+```
