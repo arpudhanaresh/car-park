@@ -15,8 +15,11 @@ interface Booking {
     start_time: string;
     end_time: string;
     status: string;
+    payment_status: string;
     payment_amount: number;
     can_cancel: boolean;
+    latest_order_id?: string;
+    refund_status?: string;
 }
 
 const CustomerDashboard: React.FC = () => {
@@ -104,6 +107,51 @@ const CustomerDashboard: React.FC = () => {
         }
     };
 
+    const handleRetry = async (bookingId: number) => {
+        try {
+            const response = await parking.initiatePayment(bookingId);
+            const { action, fields } = response.data;
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = action;
+
+            Object.keys(fields).forEach(key => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = fields[key];
+                form.appendChild(input);
+            });
+
+            document.body.appendChild(form);
+            form.submit();
+        } catch (e) {
+            alert('Failed to retry payment. Please try again.');
+        }
+    };
+
+    const handleCheckStatus = async (bookingId: number, orderId?: string) => {
+        if (!orderId) {
+            alert("Order ID not found for this booking. Cannot check status.");
+            return;
+        }
+        try {
+            const response = await parking.checkPaymentStatus(bookingId, orderId);
+            const newStatus = response.data.status;
+            // map newStatus to readable
+            let msg = newStatus;
+            if (newStatus === 'paid') msg = 'Payment Successful! Refreshing...';
+            else if (newStatus === 'failed') msg = 'Payment Failed. Please retry.';
+            else msg = 'Payment still pending.';
+
+            alert(msg);
+            fetchBookings(); // Refresh UI
+        } catch (e) {
+            alert('Error checking status. Please try again.');
+        }
+    };
+
     return (
         <div className="space-y-8 relative">
             <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -134,10 +182,24 @@ const CustomerDashboard: React.FC = () => {
                                     <Car size={24} />
                                 </div>
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
-                  ${booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                        booking.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                            'bg-gray-700 text-gray-400 border border-gray-600'}`}>
-                                    {booking.status}
+                  ${booking.status === 'cancelled' ? (
+                                        booking.refund_status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                                            booking.refund_status === 'completed' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
+                                                'bg-gray-700 text-red-400 border border-red-500/20'
+                                    ) :
+                                        booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                            booking.payment_status === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                                booking.payment_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                                                    'bg-gray-700 text-gray-400 border border-gray-600'}`}>
+                                    {booking.status === 'cancelled' ? (
+                                        booking.refund_status === 'pending' ? 'Refund Pending' :
+                                            booking.refund_status === 'completed' ? 'Refunded' :
+                                                'Cancelled'
+                                    ) :
+                                        booking.status === 'active' ? 'Active' :
+                                            booking.payment_status === 'failed' ? 'Payment Failed' :
+                                                booking.payment_status === 'pending' ? 'Payment Pending' :
+                                                    booking.status}
                                 </span>
                             </div>
 
@@ -194,6 +256,24 @@ const CustomerDashboard: React.FC = () => {
                                             <Trash2 size={14} />
                                             Cancel <span className="hidden sm:inline opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
                                             <span className="sm:hidden opacity-50 ml-1 text-[10px]">(Fee)</span>
+                                        </button>
+                                    )}
+                                    {booking.payment_status === 'failed' && booking.status !== 'cancelled' && (
+                                        <button
+                                            onClick={() => handleRetry(booking.id)}
+                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-white hover:text-white transition-colors bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg shadow-lg shadow-indigo-500/20"
+                                        >
+                                            <Clock size={14} />
+                                            Retry Payment
+                                        </button>
+                                    )}
+                                    {booking.payment_status === 'pending' && booking.status !== 'cancelled' && (
+                                        <button
+                                            onClick={() => handleCheckStatus(booking.id, booking.latest_order_id)}
+                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-yellow-400 hover:text-yellow-300 transition-colors bg-yellow-500/10 hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg border border-yellow-500/20"
+                                        >
+                                            <Clock size={14} />
+                                            Check Status
                                         </button>
                                     )}
                                 </div>

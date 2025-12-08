@@ -56,6 +56,7 @@ export const parking = {
   checkPromo: (code: string) => api.post(`/promos/check?code=${code}`),
   getPublicConfig: () => api.get('/config/public'),
   initiatePayment: (bookingId: number) => api.post(`/payment/initiate/${bookingId}`),
+  checkPaymentStatus: (bookingId: number, orderId: string) => api.post(`/payment/check-status/${bookingId}?order_id=${orderId}`),
 };
 
 export const vehicles = {

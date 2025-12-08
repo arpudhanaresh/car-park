@@ -18,7 +18,11 @@ def initiate_payment(booking_id: int, db: Session = Depends(get_db)):
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
         
-    order_id = f"RP-{booking.id}"
+    # Generate unique order ID for retry support: RP-{booking_id}-{timestamp}
+    import time
+    timestamp = int(time.time())
+    order_id = f"RP-{booking.id}-{timestamp}"
+    
     amount_str = f"{float(booking.payment_amount):.2f}"
     
     checksum = ringgitpay_service.generate_request_checksum(
@@ -26,6 +30,29 @@ def initiate_payment(booking_id: int, db: Session = Depends(get_db)):
         amount=amount_str,
         order_id=order_id
     )
+    
+    # Update status to pending and save order ID
+    old_payment_status = booking.payment_status
+    booking.payment_status = 'pending'
+    booking.latest_order_id = order_id
+    
+    # Log the action if it's a retry (or even first time)
+    from main import log_booking_audit # Import here to avoid circular dependency if possible, or move log function to specific service
+    # Assuming log_booking_audit is importable or we replicate valid logic. 
+    # Actually, main.py imports routers, so router importing main is circular. 
+    # Better to just manipulate DB manually for audit log here to be safe and quick.
+    from models import BookingAuditLog
+    audit_log = BookingAuditLog(
+        booking_id=booking.id,
+        user_id=booking.user_id,
+        action="payment_initiated",
+        old_status=old_payment_status,
+        new_status="pending",
+        details=f"Payment initiated. Order ID: {order_id}"
+    )
+    db.add(audit_log)
+
+    db.commit()
     
     return {
         "action": ringgitpay_service.payment_url,
@@ -43,47 +70,87 @@ def initiate_payment(booking_id: int, db: Session = Depends(get_db)):
         }
     }
 
+def extract_booking_id(rp_order_id: str) -> int:
+    # Format: RP-{booking_id}-{timestamp} or RP-{booking_id} (legacy)
+    try:
+        parts = rp_order_id.split('-')
+        if len(parts) >= 2:
+            return int(parts[1])
+        return int(rp_order_id.replace("RP-", ""))
+    except:
+        return None
+
+def update_booking_status_logic(db: Session, booking: Booking, status_code: str, transaction_ref: str = None):
+    if status_code == 'RP00':
+        booking.payment_status = 'paid'
+        # Ensure status is active only on success (as requested)
+        booking.status = 'active'
+    elif status_code == 'RP09':
+        if booking.payment_status != 'paid':
+            booking.payment_status = 'pending'
+    else:
+        # Failure (RP91, RP100, etc.)
+        if booking.payment_status != 'paid':
+             booking.payment_status = 'failed'
+             
+    db.commit()
+
+@router.post("/check-status/{booking_id}")
+def check_payment_status(booking_id: int, order_id: str = None, transaction_ref: str = None, db: Session = Depends(get_db)):
+    # Manual trigger to check status via Enquiry API
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    # If order_id not provided, we might need to store the last generated order_id in DB?
+    # For now, we assume frontend provides the order_id used.
+    # If not, we can't reliably check status without order_id as it changes on retry.
+    if not order_id:
+         raise HTTPException(status_code=400, detail="Order ID required to check status")
+
+    result = ringgitpay_service.check_status(order_id, transaction_ref)
+    
+    if result:
+        # result is likely a dict or NVP string. RinggitPay docs unclear on exact JSON vs NVP response body.
+        # Assuming dict from service.
+        if isinstance(result, dict):
+             rp_status = result.get('rp_statusCode')
+             rp_ref = result.get('rp_transactionRef')
+             if rp_status:
+                 update_booking_status_logic(db, booking, rp_status, rp_ref)
+                 return {"status": booking.payment_status, "rp_statusCode": rp_status, "raw": result}
+    
+    return {"status": booking.payment_status, "message": "Could not verify with gateway"}
+
 @router.post("/return")
 async def payment_return(request: Request, db: Session = Depends(get_db)):
-    # Handle Return URL (POST from Gateway) -> Redirect to Frontend
     form_data = await request.form()
     rp_data = {k: v for k, v in form_data.items() if k.startswith('rp_')}
     
     status_code = rp_data.get('rp_statusCode')
+    order_id = rp_data.get('rp_orderId')
+    transaction_ref = rp_data.get('rp_transactionRef')
     
-    # Attempt to update DB immediately for better UX
-    try:
-        order_id = rp_data.get('rp_orderId')
-        if order_id:
-            booking_id = int(order_id.replace("RP-", ""))
+    if order_id:
+        booking_id = extract_booking_id(order_id)
+        if booking_id:
             booking = db.query(Booking).filter(Booking.id == booking_id).first()
             if booking:
-                if status_code == 'RP00':
-                    if booking.payment_status != 'paid':
-                        booking.payment_status = 'paid'
-                        db.commit()
-                else:
-                    if booking.payment_status != 'failed':
-                        booking.payment_status = 'failed'
-                        db.commit()
-    except Exception as e:
-        print(f"Error updating DB in return: {e}")
+                update_booking_status_logic(db, booking, status_code, transaction_ref)
 
     if status_code == 'RP00':
         return RedirectResponse(url=f"{FRONTEND_URL}/payment-status?status=success", status_code=303)
+    elif status_code == 'RP09':
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-status?status=pending&code={status_code}", status_code=303)
     else:
-        return RedirectResponse(url=f"{FRONTEND_URL}/payment-status?status=failed&code={status_code}", status_code=303)
+        return RedirectResponse(url=f"{FRONTEND_URL}/payment-status?status=failed&code={status_code}&orderId={order_id}", status_code=303)
 
 @router.post("/callback")
 async def payment_callback(request: Request, db: Session = Depends(get_db)):
-    # RinggitPay sends NVP via FORM POST
     form_data = await request.form()
-    
     rp_data = {k: v for k, v in form_data.items() if k.startswith('rp_')}
     
     # Verify Checksum
-    # specific fields for checksum: rp_appId|rp_currency|rp_amount|rp_statusCode|rp_orderId|rp_transactionRef
-    
     is_valid = ringgitpay_service.verify_response_checksum(
         rp_app_id=rp_data.get('rp_appId'),
         rp_currency=rp_data.get('rp_currency'),
@@ -96,33 +163,16 @@ async def payment_callback(request: Request, db: Session = Depends(get_db)):
     
     if not is_valid:
         print(f"Invalid checksum for order {rp_data.get('rp_orderId')}")
-        # Depending on guide, maybe return 200 anyway to stop retries, but log error
-        return "OK" 
+        return "OK"
         
-    # Update Booking Logic
-    try:
-        order_id = rp_data.get('rp_orderId')
-        booking_id = int(order_id.replace("RP-", ""))
+    order_id = rp_data.get('rp_orderId')
+    status_code = rp_data.get('rp_statusCode')
+    transaction_ref = rp_data.get('rp_transactionRef')
+    
+    booking_id = extract_booking_id(order_id)
+    if booking_id:
         booking = db.query(Booking).filter(Booking.id == booking_id).first()
-        
         if booking:
-            status_code = rp_data.get('rp_statusCode')
-            transaction_ref = rp_data.get('rp_transactionRef')
-            
-            if status_code == 'RP00':
-                if booking.payment_status != 'paid':
-                    booking.payment_status = 'paid'
-                    # Log audit if possible or simple print for now
-                    print(f"Payment confirmed for Booking {booking_id}. Ref: {transaction_ref}")
-            else:
-                if booking.payment_status != 'failed':
-                    booking.payment_status = 'failed'
-                    print(f"Payment failed for Booking {booking_id}. Code: {status_code}")
-            
-            db.commit()
+            update_booking_status_logic(db, booking, status_code, transaction_ref)
 
-    except Exception as e:
-        print(f"Error processing callback: {e}")
-
-    # Must return 200 OK
     return "OK"

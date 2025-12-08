@@ -63,6 +63,56 @@ async def lifespan(app: FastAPI):
         db.add(LayoutConfigDB(rows=5, cols=5))
         db.commit()
     db.close()
+    
+    # Start background task for expiring pending bookings
+    import asyncio
+    async def expire_pending_bookings():
+        while True:
+            # Check every 5 minutes (300 seconds)
+            await asyncio.sleep(300) 
+            try:
+                db_session = SessionLocal()
+                print("Running background check for expired bookings...")
+                
+                # Expiration Time: Now - 15 minutes
+                from datetime import datetime
+                expiration_threshold = datetime.utcnow() - timedelta(minutes=15)
+                
+                expired_bookings = db_session.query(Booking).filter(
+                    Booking.status == 'pending',
+                    Booking.created_at < expiration_threshold
+                ).all()
+                
+                count = 0
+                for booking in expired_bookings:
+                    # Double check payment status too? Assuming 'pending' status implies payment is not 'paid'.
+                    # We might have payment_status='pending' but status='active' won't be picked here. Correct.
+                    # Only 'pending' status (created but not active) are expired.
+                    
+                    booking.status = 'expired'
+                    if booking.payment_status == 'pending':
+                         booking.payment_status = 'failed' # Or explict 'expired' payment status if we had one
+                         
+                    # Free up spot? Spot is only occupied if status is active/pending.
+                    # Changing to 'expired' automatically frees it in overlap logic.
+                    if booking.spot and booking.spot.is_booked and booking.spot.booked_by_id == booking.user_id:
+                        # Only unbook if this specific booking held the lock (logic slightly redundant but safe)
+                        # Actually main logic for map uses status check on bookings, so spot.is_booked flag might be stale?
+                        # Our map logic checks Occupied IDs from Active/Pending bookings. So changing status is enough.
+                        pass
+
+                    count += 1
+                
+                if count > 0:
+                    db_session.commit()
+                    print(f"Expired {count} pending bookings.")
+                
+                db_session.close()
+            except Exception as e:
+                print(f"Error in background expiration task: {e}")
+
+    asyncio.create_task(expire_pending_bookings())
+    
     yield
     # Shutdown (if needed)
 
@@ -240,7 +290,7 @@ def get_layout(
             pass # Fallback to now if parse fails
             
     occupied_spot_ids = db.query(Booking.spot_id).filter(
-        Booking.status == 'active',
+        Booking.status.in_(['active', 'pending']),
         Booking.start_time < check_end, # Overlap logic: booking starts before window ends
         Booking.end_time > check_start  # AND booking ends after window starts
     ).all()
@@ -727,7 +777,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     # Check if this spot is already booked for the requested duration
     overlapping_booking = db.query(Booking).filter(
         Booking.spot_id == spot.id,
-        Booking.status == 'active',
+        Booking.status.in_(['active', 'pending']),
         Booking.start_time < end_time_naive,
         Booking.end_time > start_time_naive
     ).first()
@@ -823,7 +873,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         payment_amount=final_amount,
         discount_amount=discount_amount,
         promo_code_id=promo_code_id,
-        status="active"
+        status="pending"
     )
     
     db.add(booking)
@@ -832,7 +882,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     # Log the booking creation
     log_booking_audit(
         db, booking.id, current_user.id, "created", 
-        None, "active", f"Booking created for {vehicle.license_plate}. Paid: {final_amount}"
+        None, "pending", f"Booking created for {vehicle.license_plate}. Amount: {final_amount}"
     )
     
     db.commit()
@@ -862,7 +912,8 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         refund_status=booking.refund_status,
         refund_amount=float(booking.refund_amount),
         created_at=booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None,
-        can_cancel=can_cancel
+        can_cancel=can_cancel,
+        latest_order_id=booking.latest_order_id
     )
 
 @app.get("/bookings", response_model=List[BookingResponse])
@@ -876,7 +927,7 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
     result = []
     for booking in bookings:
         can_cancel = (
-            booking.status == "active" and 
+            (booking.status == "active" or booking.status == "pending") and 
             booking.start_time > datetime.utcnow()
         )
         
@@ -905,7 +956,8 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),
             created_at=response_created,
-            can_cancel=can_cancel
+            can_cancel=can_cancel,
+            latest_order_id=booking.latest_order_id
         ))
     
     return result
@@ -972,7 +1024,8 @@ def close_booking(booking_id: int, current_user: User = Depends(get_current_user
         refund_amount=float(booking.refund_amount),
         excess_fee=float(booking.excess_fee),
         created_at=response_created,
-        can_cancel=False
+        can_cancel=False,
+        latest_order_id=booking.latest_order_id
     )
 
 @app.get("/admin/bookings", response_model=List[BookingResponse])
@@ -987,7 +1040,7 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
     result = []
     for booking in bookings:
         can_cancel = (
-            booking.status == "active" and 
+            (booking.status == "active" or booking.status == "pending") and 
             booking.start_time > datetime.utcnow()
         )
         
@@ -1016,7 +1069,8 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             refund_amount=float(booking.refund_amount),
             excess_fee=float(booking.excess_fee) if booking.excess_fee else 0.0,
             created_at=response_created,
-            can_cancel=can_cancel
+            can_cancel=can_cancel,
+            latest_order_id=booking.latest_order_id
         ))
     
     return result
@@ -1039,7 +1093,7 @@ def cancel_booking(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
     
-    if booking.status != "active":
+    if booking.status not in ["active", "pending"]:
         raise HTTPException(status_code=400, detail="Cannot cancel this booking")
     
     # Check if booking can be cancelled (before start time)
