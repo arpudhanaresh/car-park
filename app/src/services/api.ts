@@ -75,7 +75,8 @@ export const parking = {
 export const vehicles = {
   getByLicense: (plate: string) => api.get(`/vehicles/${plate}`),
   getMyVehicles: () => api.get<any[]>('/vehicles'),
-  createOrUpdate: (data: any) => api.post('/vehicles', data), // TODO: Separate create/update if needed or handle in single endpoint
+  create: (data: any) => api.post('/vehicles', data),
+  update: (id: number, data: any) => api.put(`/vehicles/${id}`, data),
   delete: (id: number) => api.delete(`/vehicles/${id}`),
 };
 

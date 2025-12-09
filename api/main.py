@@ -1195,6 +1195,28 @@ def create_vehicle(vehicle_data: VehicleCreate, current_user: User = Depends(get
     db.refresh(new_vehicle)
     return new_vehicle
 
+@app.put("/vehicles/{vehicle_id}", response_model=VehicleResponse)
+def update_vehicle(vehicle_id: int, vehicle_data: VehicleCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    # Check for license plate conflict if changing
+    new_plate = vehicle_data.license_plate.upper()
+    if new_plate != vehicle.license_plate:
+        existing = db.query(Vehicle).filter(Vehicle.license_plate == new_plate).first()
+        if existing and existing.id != vehicle.id:
+             raise HTTPException(status_code=400, detail="License plate already registered.")
+
+    vehicle.license_plate = new_plate
+    for key, value in vehicle_data.dict(exclude_unset=True).items():
+         if key != 'license_plate':
+            setattr(vehicle, key, value)
+            
+    db.commit()
+    db.refresh(vehicle)
+    return vehicle
+
 @app.get("/vehicles", response_model=List[VehicleResponse])
 def get_user_vehicles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
