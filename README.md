@@ -106,6 +106,16 @@ DB_NAME=car_parking
 SECRET_KEY=your_secret_key_here
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# RinggitPay
+RINGGITPAY_APP_ID=your_app_id
+RINGGITPAY_REQUEST_KEY=your_request_key
+RINGGITPAY_RESPONSE_KEY=your_response_key
+RINGGITPAY_ENV=UAT
+RINGGITPAY_UAT_URL=https://ringgitpay.co/payment
+
+API_BASE_URL=https://car-api.arpudhacheck.me
+FRONTEND_URL=https://car.arpudhacheck.me
 ```
 
 ### Frontend (`app/.env`)
