@@ -36,6 +36,7 @@ class ParkingSpot(Base):
     
     label = Column(String(10), default="") # e.g. "A1", "VIP-1"
     spot_type = Column(String(20), default="standard") # standard, ev, vip
+    is_blocked = Column(Boolean, default=False)
 
     booked_by = relationship("User")
 
@@ -171,6 +172,7 @@ class SpotSchema(BaseModel):
     is_booked: bool
     label: str = ""
     spot_type: str = "standard"
+    is_blocked: bool = False
     booked_by_username: Optional[str] = None
 
 class UpdateSpot(BaseModel):

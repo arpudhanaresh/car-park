@@ -58,6 +58,7 @@ const AdminDashboard: React.FC = () => {
         row: number;
         col: number;
         is_booked: boolean;
+        is_blocked: boolean;
         label: string;
         spot_type: string;
     }
@@ -128,7 +129,7 @@ const AdminDashboard: React.FC = () => {
             setSpots(layoutRes.data.spots);
             setBookings(bookingsRes.data);
             setPromos(promosRes.data);
-            setConfigs(configsRes.data.configs);
+            setConfigs(configsRes.data);
             setAnalytics(analyticsRes.data);
         } catch (error) {
             console.error("Failed to fetch data", error);
@@ -157,6 +158,13 @@ const AdminDashboard: React.FC = () => {
                 label: editingSpot.label,
                 spot_type: editingSpot.spot_type
             });
+
+            // Handle Block Status Change
+            const originalSpot = spots.find(s => s.id === editingSpot.id);
+            if (originalSpot && originalSpot.is_blocked !== editingSpot.is_blocked) {
+                await admin.toggleSpotBlock(editingSpot.id);
+            }
+
             setShowSpotModal(false);
             showDialog("Success", "Spot updated successfully!", "alert");
             fetchData();
@@ -336,24 +344,32 @@ const AdminDashboard: React.FC = () => {
                                         gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`
                                     }}
                                 >
-                                    {spots.map((spot) => (
+                                    {spots.map((spot, index) => (
                                         <button
-                                            key={spot.id}
+                                            key={spot.id || `virtual-${index}-${spot.row}-${spot.col}`}
                                             onClick={() => {
                                                 setEditingSpot(spot);
                                                 setShowSpotModal(true);
                                             }}
                                             className={`
                                                 aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all duration-200
-                                                border relative group hover:scale-105
-                                                ${spot.spot_type === 'ev'
-                                                    ? 'bg-green-900/20 border-green-500/30 text-green-400 hover:bg-green-900/40 hover:border-green-500/50'
-                                                    : spot.spot_type === 'vip'
-                                                        ? 'bg-yellow-900/20 border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/40 hover:border-yellow-500/50'
-                                                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:border-gray-500 hover:text-white'
+                                                border relative group hover:scale-105 overflow-hidden
+                                                ${spot.is_blocked
+                                                    ? 'bg-red-900/10 border-red-500/30 text-red-500 cursor-not-allowed opacity-75 stripe-pattern'
+                                                    : spot.spot_type === 'ev'
+                                                        ? 'bg-green-900/20 border-green-500/30 text-green-400 hover:bg-green-900/40 hover:border-green-500/50'
+                                                        : spot.spot_type === 'vip'
+                                                            ? 'bg-yellow-900/20 border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/40 hover:border-yellow-500/50'
+                                                            : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700 hover:border-gray-500 hover:text-white'
                                                 }
                                             `}
                                         >
+                                            {spot.is_blocked && (
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
+                                                    <div className="w-full h-0.5 bg-red-500 rotate-45 transform scale-150" />
+                                                    <div className="w-full h-0.5 bg-red-500 -rotate-45 transform scale-150 absolute" />
+                                                </div>
+                                            )}
                                             {spot.spot_type === 'ev' && (
                                                 <span className="absolute top-1 right-1 text-[8px] opacity-70">⚡</span>
                                             )}
@@ -701,13 +717,25 @@ const AdminDashboard: React.FC = () => {
                                 </div>
                             </div>
 
-                            <button
-                                onClick={handleUpdateSpot}
-                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
-                            >
-                                Save Changes
-                            </button>
+                            <div className="pt-4 border-t border-white/10">
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Maintenance Status</label>
+                                <select
+                                    value={editingSpot.is_blocked ? 'blocked' : 'available'}
+                                    onChange={(e) => setEditingSpot({ ...editingSpot, is_blocked: e.target.value === 'blocked' })}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                >
+                                    <option value="available">Available (Active)</option>
+                                    <option value="blocked">Under Maintenance (Blocked)</option>
+                                </select>
+                            </div>
                         </div>
+
+                        <button
+                            onClick={handleUpdateSpot}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
+                        >
+                            Save Changes
+                        </button>
                     </div>
                 </div>
             )}

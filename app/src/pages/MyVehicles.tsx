@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { vehicles } from '../services/api';
-import { Car, Plus, Edit2, X } from 'lucide-react';
+import { Car, Plus, Edit2, X, Trash2 } from 'lucide-react';
 
 interface Vehicle {
     id: number;
@@ -110,8 +110,26 @@ const MyVehicles: React.FC = () => {
                                 <button
                                     onClick={() => handleOpenModal(vehicle)}
                                     className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                    title="Edit Vehicle"
                                 >
                                     <Edit2 size={16} />
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (window.confirm('Are you sure you want to remove this vehicle?')) {
+                                            try {
+                                                await vehicles.delete(vehicle.id);
+                                                fetchVehicles();
+                                            } catch (error) {
+                                                console.error("Failed to delete vehicle", error);
+                                                alert("Failed to delete vehicle.");
+                                            }
+                                        }
+                                    }}
+                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                    title="Remove Vehicle"
+                                >
+                                    <Trash2 size={16} />
                                 </button>
                             </div>
 

@@ -316,9 +316,11 @@ def get_layout(
                     is_booked = True
                 label = spot.label if spot.label else f"{chr(65 + r)}{c + 1}"
                 spot_type = spot.spot_type if spot.spot_type else "standard"
+                is_blocked = spot.is_blocked
             else:
                  # Virtual spot if not in DB yet (shouldn't happen much if configured right)
                 label = f"{chr(65 + r)}{c + 1}"
+                is_blocked = False
                 
             spots_out.append(SpotSchema(
                 id=spot.id if spot else None,
@@ -327,6 +329,7 @@ def get_layout(
                 is_booked=is_booked,
                 label=label,
                 spot_type=spot_type,
+                is_blocked=is_blocked,
                 booked_by_username=booked_by_username
             ))
             
@@ -353,55 +356,68 @@ def update_spot(spot_id: int, updates: UpdateSpot, current_user: User = Depends(
     db.commit()
     return {"message": "Spot updated successfully"}
 
+
+
+@app.put("/admin/spots/{spot_id}/toggle-block")
+def toggle_spot_block(spot_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    spot = db.query(ParkingSpot).filter(ParkingSpot.id == spot_id).first()
+    if not spot:
+        raise HTTPException(status_code=404, detail="Spot not found")
+    
+    spot.is_blocked = not spot.is_blocked
+    db.commit()
+    
+    status = "blocked" if spot.is_blocked else "unblocked"
+    return {"message": f"Spot {status} successfully", "is_blocked": spot.is_blocked}
+
 @app.get("/admin/analytics", response_model=AnalyticsResponse)
 def get_analytics(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-        
-    # KPIs
-    total_revenue = db.query(func.sum(Booking.payment_amount)).filter(Booking.status.in_(['active', 'completed'])).scalar() or 0.0
-    total_bookings = db.query(func.count(Booking.id)).filter(Booking.status != 'cancelled').scalar() or 0
-    active_bookings = db.query(func.count(Booking.id)).filter(Booking.status == 'active').scalar() or 0
     
-    # Revenue Chart (Last 7 Days)
-    from datetime import timedelta
+    # 1. Total Revenue (Completed payments only)
+    total_revenue = db.query(func.sum(Booking.payment_amount)).filter(
+        Booking.payment_status == 'paid',
+        Booking.status != 'cancelled'
+    ).scalar() or 0.0
+    
+    # 2. Total Bookings
+    total_bookings = db.query(func.count(Booking.id)).scalar()
+    
+    # 3. Active Bookings
+    active_bookings = db.query(func.count(Booking.id)).filter(Booking.status == 'active').scalar()
+    
+    # 4. Revenue Chart (Last 7 Days)
+    # Group by Date
     seven_days_ago = datetime.utcnow() - timedelta(days=7)
-    
-    # MySQL specific date grouping
-    # Note: SQLite uses strftime, MySQL uses DATE()
     revenue_data = db.query(
-        func.date(Booking.start_time).label('date'),
+        func.date(Booking.created_at).label('date'),
         func.sum(Booking.payment_amount).label('total')
     ).filter(
-        Booking.start_time >= seven_days_ago,
-        Booking.status.in_(['active', 'completed'])
-    ).group_by(func.date(Booking.start_time)).all()
+        Booking.payment_status == 'paid',
+        Booking.status != 'cancelled',
+        Booking.created_at >= seven_days_ago
+    ).group_by(func.date(Booking.created_at)).all()
     
-    revenue_chart = [ChartData(name=str(r.date), value=float(r.total)) for r in revenue_data]
-   
-    # Simplified Occupancy (Bookings by Hour of Day)
+    revenue_chart = [
+        ChartData(name=str(r.date), value=float(r.total)) for r in revenue_data
+    ]
+    
+    # 5. Occupancy/Peak Times (by Hour of Day)
+    # Simple heuristic: Count bookings starting in each hour
     occupancy_data = db.query(
         func.extract('hour', Booking.start_time).label('hour'),
         func.count(Booking.id).label('count')
-    ).filter(
-        Booking.status != 'cancelled'
-    ).group_by(func.extract('hour', Booking.start_time)).order_by('hour').all()
+    ).group_by(func.extract('hour', Booking.start_time)).all()
     
-    # Fill 0-23 hours
-    occupancy_map = {r.hour: r.count for r in occupancy_data}
-    occupancy_chart = [ChartData(name=f"{h:02d}:00", value=occupancy_map.get(str(h), 0) if isinstance(h, str) else occupancy_map.get(int(h), 0) if isinstance(h, (int, float)) else occupancy_map.get(h, 0)) for h in range(24)]
-    
-    # Fix for SQLAlchemy returning decimals
-    # Actually extract returns integer usually, but let's be safe. 
-    # Let's just iterate 0..23 and check map
-    occupancy_chart = []
-    for h in range(24):
-        val = 0
-        for r in occupancy_data:
-            if int(r.hour) == h:
-                val = r.count
-                break
-        occupancy_chart.append(ChartData(name=f"{h:02d}:00", value=val))
+    occupancy_chart = [
+        ChartData(name=f"{int(r.hour):02d}:00", value=float(r.count)) for r in occupancy_data
+    ]
+    # Sort by hour
+    occupancy_chart.sort(key=lambda x: x.name)
 
     return AnalyticsResponse(
         total_revenue=float(total_revenue),
@@ -410,6 +426,7 @@ def get_analytics(current_user: User = Depends(get_current_user), db: Session = 
         revenue_chart=revenue_chart,
         occupancy_chart=occupancy_chart
     )
+
 
 @app.post("/admin/layout")
 def update_layout(config: LayoutConfig, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -744,8 +761,11 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         ParkingSpot.col == booking_data.col
     ).first()
     
-    if spot and spot.is_booked:
-        raise HTTPException(status_code=400, detail="Spot is already booked")
+    if spot:
+        if spot.is_booked:
+            raise HTTPException(status_code=400, detail="Spot is already booked")
+        if spot.is_blocked:
+            raise HTTPException(status_code=400, detail="Spot is under maintenance")
     
     # Create spot if it doesn't exist
     if not spot:
@@ -797,12 +817,14 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
                 license_plate=booking_data.license_plate.upper(),
                 owner_name=booking_data.name,
                 phone=booking_data.phone,
-                email=booking_data.email
+                email=booking_data.email,
+                user_id=current_user.id 
             )
         else:
             # Create vehicle with detailed data
             vehicle_dict = booking_data.vehicle_data.dict()
             vehicle_dict["license_plate"] = booking_data.license_plate.upper()
+            vehicle_dict["user_id"] = current_user.id
             vehicle = Vehicle(**vehicle_dict)
         
         db.add(vehicle)
@@ -1133,6 +1155,70 @@ def cancel_booking(
         "refund_amount": refund_amount,
         "refund_reason": refund_reason
     }
+
+@app.post("/vehicles", response_model=VehicleResponse)
+def create_vehicle(vehicle_data: VehicleCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Check if vehicle exists (by license plate)
+    # The constraint is unique globally.
+    existing_vehicle = db.query(Vehicle).filter(Vehicle.license_plate == vehicle_data.license_plate.upper()).first()
+    
+    if existing_vehicle:
+        # If it exists, check ownership
+        if existing_vehicle.user_id == current_user.id:
+             # Just update details
+             for key, value in vehicle_data.dict(exclude_unset=True).items():
+                 if key != 'license_plate': # Don't update PK-like field
+                    setattr(existing_vehicle, key, value)
+             db.commit()
+             db.refresh(existing_vehicle)
+             return existing_vehicle
+        elif existing_vehicle.user_id is None:
+            # Claim it
+            existing_vehicle.user_id = current_user.id
+            for key, value in vehicle_data.dict(exclude_unset=True).items():
+                 if key != 'license_plate':
+                    setattr(existing_vehicle, key, value)
+            db.commit()
+            db.refresh(existing_vehicle)
+            return existing_vehicle
+        else:
+             raise HTTPException(status_code=400, detail="Vehicle already registered to another user.")
+    
+    # Create new
+    vehicle_dict = vehicle_data.dict()
+    vehicle_dict["license_plate"] = vehicle_dict["license_plate"].upper()
+    vehicle_dict["user_id"] = current_user.id
+    new_vehicle = Vehicle(**vehicle_dict)
+    
+    db.add(new_vehicle)
+    db.commit()
+    db.refresh(new_vehicle)
+    return new_vehicle
+
+@app.get("/vehicles", response_model=List[VehicleResponse])
+def get_user_vehicles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+
+@app.delete("/vehicles/{vehicle_id}")
+def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id, Vehicle.user_id == current_user.id).first()
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    
+    # Check if any bookings exist
+    bookings_count = db.query(Booking).filter(Booking.vehicle_id == vehicle.id).count()
+    
+    if bookings_count > 0:
+        # Just unlink
+        vehicle.user_id = None
+        message = "Vehicle removed from your account."
+    else:
+        # Hard delete
+        db.delete(vehicle)
+        message = "Vehicle deleted successfully."
+        
+    db.commit()
+    return {"message": message}
 
 if __name__ == "__main__":
     import uvicorn

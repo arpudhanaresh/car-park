@@ -8,8 +8,9 @@ interface Spot {
     row: number;
     col: number;
     is_booked: boolean;
+    is_blocked: boolean;
     label: string;
-    spot_type: string;
+    spot_type: 'standard' | 'vip' | 'ev';
     booked_by_username?: string;
 }
 
@@ -20,7 +21,7 @@ interface Layout {
 }
 
 const BookingPage: React.FC = () => {
-    
+
     const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -438,13 +439,13 @@ const BookingPage: React.FC = () => {
                                         Array.from({ length: layout.cols }).map((_, c) => {
                                             const spot = layout.spots.find(s => s.row === r && s.col === c);
                                             const isSelected = selectedSpot?.row === r && selectedSpot?.col === c;
-                                            const isBooked = spot?.is_booked;
+                                            const isBooked = spot?.is_booked || spot?.is_blocked;
 
                                             return (
                                                 <button
                                                     key={`${r}-${c}`}
                                                     disabled={isBooked}
-                                                    onClick={() => setSelectedSpot(spot || { row: r, col: c, id: 0, is_booked: false, label: '', spot_type: 'standard' })}
+                                                    onClick={() => setSelectedSpot(spot || { row: r, col: c, id: 0, is_booked: false, is_blocked: false, label: '', spot_type: 'standard' })}
                                                     className={`
                             h-14 rounded-xl flex items-center justify-center text-xs font-bold transition-all duration-300 relative overflow-hidden ring-1 ring-inset
                             ${isBooked

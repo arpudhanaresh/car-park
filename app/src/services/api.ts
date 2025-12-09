@@ -63,6 +63,8 @@ export const parking = {
   getUserBookings: () => api.get('/bookings'),
   getAllBookings: () => api.get('/admin/bookings'),
   cancelBooking: (id: number, reason: string) => api.delete(`/bookings/${id}`, { data: { cancellation_reason: reason } }),
+  getVehicles: () => api.get<any[]>('/vehicles'),
+  deleteVehicle: (id: number) => api.delete(`/vehicles/${id}`),
   closeBooking: (id: number) => api.post(`/admin/bookings/${id}/close`),
   checkPromo: (code: string) => api.post(`/promos/check?code=${code}`),
   getPublicConfig: () => api.get('/config/public'),
@@ -72,8 +74,9 @@ export const parking = {
 
 export const vehicles = {
   getByLicense: (plate: string) => api.get(`/vehicles/${plate}`),
-  getMyVehicles: () => api.get('/my-vehicles'),
-  createOrUpdate: (data: any) => api.post('/vehicles', data),
+  getMyVehicles: () => api.get<any[]>('/vehicles'),
+  createOrUpdate: (data: any) => api.post('/vehicles', data), // TODO: Separate create/update if needed or handle in single endpoint
+  delete: (id: number) => api.delete(`/vehicles/${id}`),
 };
 
 export const admin = {
@@ -85,6 +88,7 @@ export const admin = {
     deletePromo: (id: number) => api.delete(`/admin/promos/${id}`),
     updatePromo: (id: number, data: any) => api.put(`/admin/promos/${id}/update`, data),
     updateSpot: (id: number, data: any) => api.put(`/admin/spots/${id}`, data),
+    toggleSpotBlock: (id: number) => api.put(`/admin/spots/${id}/toggle-block`),
     getAnalytics: () => api.get('/admin/analytics'),
 };
 
