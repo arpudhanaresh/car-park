@@ -810,6 +810,12 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         Vehicle.license_plate == booking_data.license_plate.upper()
     ).first()
     
+    if vehicle:
+        # Check if vehicle needs to be claimed by user
+        if vehicle.user_id is None:
+            vehicle.user_id = current_user.id
+            db.add(vehicle) # Ensure update is tracked
+    
     if not vehicle:
         if not booking_data.vehicle_data:
             # Create basic vehicle record with license plate

@@ -32,9 +32,7 @@ const CustomerDashboard: React.FC = () => {
     const [qrBooking, setQrBooking] = useState<Booking | null>(null);
     const navigate = useNavigate();
 
-    useEffect(() => {
-        fetchBookings();
-    }, []);
+
 
     const fetchBookings = async () => {
         try {
@@ -47,18 +45,8 @@ const CustomerDashboard: React.FC = () => {
         }
     };
 
-    const [vehicles, setVehicles] = useState<any[]>([]);
-    const fetchVehicles = async () => {
-        try {
-            const res = await parking.getVehicles();
-            setVehicles(res.data);
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
     useEffect(() => {
-        fetchVehicles();
+        fetchBookings();
     }, []);
 
     const handleCancelClick = (id: number) => {
