@@ -258,7 +258,7 @@ const CustomerDashboard: React.FC = () => {
                                             <span className="sm:hidden opacity-50 ml-1 text-[10px]">(Fee)</span>
                                         </button>
                                     )}
-                                    {booking.payment_status === 'failed' && booking.status !== 'cancelled' && (
+                                    {booking.payment_status === 'failed' && booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
                                         <button
                                             onClick={() => handleRetry(booking.id)}
                                             className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-white hover:text-white transition-colors bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg shadow-lg shadow-indigo-500/20"
