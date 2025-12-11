@@ -97,6 +97,7 @@ export const admin = {
     calculateExitFee: (bookingId: number) => api.post(`/admin/bookings/${bookingId}/calculate-exit`),
     completeBooking: (bookingId: number, data: any) => api.post(`/admin/bookings/${bookingId}/complete`, data),
     notifyOverstay: (bookingId: number) => api.post(`/admin/bookings/${bookingId}/notify-overstay`),
+    processRefund: (bookingId: number) => api.post(`/admin/bookings/${bookingId}/refund`),
 };
 
 export default api;

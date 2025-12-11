@@ -35,6 +35,7 @@ from models import (
 )
 
 # Pydantic Models for Password Reset
+
 class PasswordResetRequest(BaseModel):
     email: str
 
@@ -1188,7 +1189,8 @@ def cancel_booking(
     # Update booking status
     booking.status = "cancelled"
     booking.refund_amount = refund_amount
-    booking.refund_status = "processed" if refund_amount > 0 else "none"
+    # CHANGE: Set to 'pending' if amount > 0, so Admin currently has to click 'Process Refund'
+    booking.refund_status = "pending" if refund_amount > 0 else "none"
     booking.cancellation_reason = cancel_data.cancellation_reason
     booking.cancellation_time = current_time
     
@@ -1595,3 +1597,52 @@ def reset_password(req: NewPasswordRequest, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "Password reset successfully"}
+
+@app.post("/admin/bookings/{booking_id}/refund")
+def process_manual_refund(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    if booking.status != "cancelled":
+        raise HTTPException(status_code=400, detail="Booking must be cancelled to process refund")
+        
+    if booking.refund_status != "pending":
+         raise HTTPException(status_code=400, detail=f"Refund status is {booking.refund_status}, cannot process")
+         
+    if booking.refund_amount <= 0:
+        raise HTTPException(status_code=400, detail="No refund amount to process")
+        
+    # Process the dummy refund
+    booking.refund_status = "refunded"
+    
+    # Send Email to User
+    try:
+        from datetime import datetime
+        send_email(
+            booking.user.email,
+            "Refund Processed - ParkPro",
+            f"Hello {booking.user.username},\n\n"
+            f"Your refund of MYR {booking.refund_amount:.2f} for booking #{booking.id} has been processed.\n"
+            f"It should appear in your account shortly.\n\n"
+            f"Thank you."
+        )
+    except Exception as e:
+        print(f"Failed to send refund email: {e}")
+        
+    # Log Audit
+    log_booking_audit(
+        db, booking.id, current_user.id, "cancelled",
+        "cancelled", "cancelled", # Status didn't change, just refund status
+        f"Refund processed manually by admin. Amount: {booking.refund_amount}"
+    )
+    
+    db.commit()
+    return {"message": "Refund marked as processed successfully", "status": "refunded"}

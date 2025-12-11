@@ -14,6 +14,9 @@ interface Booking {
     payment_amount: number;
     email: string;
     excess_fee: number;
+    cancellation_reason?: string;
+    refund_amount?: number;
+    refund_status?: string;
 }
 
 interface PromoCode {
@@ -146,17 +149,23 @@ const AdminDashboard: React.FC = () => {
         }
     };
 
+    const [isSendingReminder, setIsSendingReminder] = useState(false);
+
     const handleNotifyOverstay = async () => {
         if (!exitModal.bookingId) return;
+        setIsSendingReminder(true);
         try {
             const res = await admin.notifyOverstay(exitModal.bookingId);
             showDialog("Success", `Email Sent! Excess Fee: $${res.data.excess_fee}`, "alert");
         } catch (error: any) {
             showDialog("Error", error.response?.data?.detail || "Failed to send notification", "error");
+        } finally {
+            setIsSendingReminder(false);
         }
     };
 
     const fetchData = async () => {
+
 
         try {
             const [layoutRes, bookingsRes, promosRes, configsRes, analyticsRes] = await Promise.all([
@@ -482,6 +491,28 @@ const AdminDashboard: React.FC = () => {
                                                         Exit / Checkout
                                                     </button>
                                                 )}
+                                                {booking.status === 'cancelled' && booking.refund_status === 'pending' && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            try {
+                                                                await admin.processRefund(booking.id);
+                                                                showDialog("Success", "Refund marked as processed!", "alert");
+                                                                fetchData();
+                                                            } catch (err: any) {
+                                                                showDialog("Error", err.response?.data?.detail || "Failed to process refund", "error");
+                                                            }
+                                                        }}
+                                                        className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
+                                                    >
+                                                        Process Refund
+                                                    </button>
+                                                )}
+                                                {booking.status === 'cancelled' && booking.refund_status === 'refunded' && (
+                                                    <span className="text-xs text-green-400 font-medium flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                                        Refunded
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -753,168 +784,184 @@ const AdminDashboard: React.FC = () => {
                 </div>
             </div>
             {/* Spot Edit Modal */}
-            {showSpotModal && editingSpot && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative shadow-xl">
-                        <button
-                            onClick={() => setShowSpotModal(false)}
-                            className="absolute right-4 top-4 text-gray-400 hover:text-white"
-                        >
-                            <X size={20} />
-                        </button>
-
-                        <h2 className="text-xl font-bold text-white mb-6">Edit Spot {editingSpot.label || `#${editingSpot.id}`}</h2>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1">Label</label>
-                                <input
-                                    type="text"
-                                    value={editingSpot.label}
-                                    onChange={(e) => setEditingSpot({ ...editingSpot, label: e.target.value })}
-                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    placeholder="e.g. A1, EV-1"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-1">Spot Type</label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {['standard', 'ev', 'vip'].map(type => (
-                                        <button
-                                            key={type}
-                                            onClick={() => setEditingSpot({ ...editingSpot, spot_type: type })}
-                                            className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-all ${editingSpot.spot_type === type
-                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
-                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                                }`}
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="pt-4 border-t border-white/10">
-                                <label className="block text-sm font-medium text-gray-400 mb-2">Maintenance Status</label>
-                                <select
-                                    value={editingSpot.is_blocked ? 'blocked' : 'available'}
-                                    onChange={(e) => setEditingSpot({ ...editingSpot, is_blocked: e.target.value === 'blocked' })}
-                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
-                                >
-                                    <option value="available">Available (Active)</option>
-                                    <option value="blocked">Under Maintenance (Blocked)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={handleUpdateSpot}
-                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
-                        >
-                            Save Changes
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Exit / Checkout Modal */}
-            {exitModal.isOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative">
-                        <button onClick={() => setExitModal(prev => ({ ...prev, isOpen: false }))} className="absolute top-4 right-4 text-gray-400 hover:text-white">
-                            <X size={20} />
-                        </button>
-                        <h3 className="text-xl font-bold text-white mb-6">Booking Exit & Checkout</h3>
-
-                        {exitModal.loading ? (
-                            <div className="flex justify-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                            </div>
-                        ) : exitModal.data ? (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
-                                        <p className="text-xs text-gray-400 uppercase mb-1">Overstay</p>
-                                        <p className="text-xl font-bold text-white">{exitModal.data.overstay_duration} hrs</p>
-                                    </div>
-                                    <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
-                                        <p className="text-xs text-gray-400 uppercase mb-1">Fee @ ${exitModal.data.hourly_rate_applied}/hr</p>
-                                        <p className="text-xl font-bold text-red-400">+${exitModal.data.overstay_fee}</p>
-                                    </div>
-                                </div>
-
-                                <div className="bg-indigo-900/20 p-5 rounded-xl border border-indigo-500/30">
-                                    <div className="flex justify-between items-center">
-                                        <p className="text-indigo-300 font-medium">Total Amount Due</p>
-                                        <p className="text-3xl font-bold text-white">${exitModal.data.total_amount}</p>
-                                    </div>
-                                    <p className="text-xs text-indigo-400/60 mt-2 text-center">Includes base fee + excess charges. No refunds for early exit.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-3">
-                                    <button
-                                        onClick={handleNotifyOverstay}
-                                        className="w-full py-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold border border-amber-500/20 flex items-center justify-center gap-2 mb-2"
-                                    >
-                                        <Mail size={20} />
-                                        Send Payment Reminder
-                                    </button>
-                                    <button
-                                        onClick={() => handleCompleteExit('cash')}
-                                        className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center justify-center gap-2"
-                                    >
-                                        <span className="text-lg">💵</span> Cash Received & Complete
-                                    </button>
-                                    <button
-                                        disabled
-                                        onClick={() => handleCompleteExit('online')}
-                                        className="w-full py-3 rounded-xl bg-gray-800 text-gray-400 font-medium border border-gray-700 cursor-not-allowed flex items-center justify-center gap-2 opacity-60"
-                                    >
-                                        <span>💳</span> Online Payment (Coming Soon)
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <p className="text-red-400 text-center">Failed to load checkout data.</p>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Custom Dialog */}
-            {dialog.isOpen && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-sm p-6 relative shadow-xl transform transition-all scale-100">
-                        <h3 className={`text-xl font-bold mb-2 ${dialog.type === 'error' ? 'text-red-500' : 'text-white'}`}>
-                            {dialog.title}
-                        </h3>
-                        <p className="text-gray-300 mb-6">
-                            {dialog.message}
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            {dialog.type === 'confirm' && (
-                                <button
-                                    onClick={closeDialog}
-                                    className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            )}
+            {
+                showSpotModal && editingSpot && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative shadow-xl">
                             <button
-                                onClick={handleConfirm}
-                                className={`px-6 py-2 rounded-lg font-bold text-white transition-colors ${dialog.type === 'error' ? 'bg-red-600 hover:bg-red-500' :
-                                    dialog.type === 'confirm' ? 'bg-indigo-600 hover:bg-indigo-500' :
-                                        'bg-indigo-600 hover:bg-indigo-500'
-                                    }`}
+                                onClick={() => setShowSpotModal(false)}
+                                className="absolute right-4 top-4 text-gray-400 hover:text-white"
                             >
-                                {dialog.type === 'confirm' ? 'Confirm' : 'OK'}
+                                <X size={20} />
+                            </button>
+
+                            <h2 className="text-xl font-bold text-white mb-6">Edit Spot {editingSpot.label || `#${editingSpot.id}`}</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Label</label>
+                                    <input
+                                        type="text"
+                                        value={editingSpot.label}
+                                        onChange={(e) => setEditingSpot({ ...editingSpot, label: e.target.value })}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="e.g. A1, EV-1"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-400 mb-1">Spot Type</label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {['standard', 'ev', 'vip'].map(type => (
+                                            <button
+                                                key={type}
+                                                onClick={() => setEditingSpot({ ...editingSpot, spot_type: type })}
+                                                className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-all ${editingSpot.spot_type === type
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
+                                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                    }`}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-white/10">
+                                    <label className="block text-sm font-medium text-gray-400 mb-2">Maintenance Status</label>
+                                    <select
+                                        value={editingSpot.is_blocked ? 'blocked' : 'available'}
+                                        onChange={(e) => setEditingSpot({ ...editingSpot, is_blocked: e.target.value === 'blocked' })}
+                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                    >
+                                        <option value="available">Available (Active)</option>
+                                        <option value="blocked">Under Maintenance (Blocked)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleUpdateSpot}
+                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
+                            >
+                                Save Changes
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+
+            {/* Exit / Checkout Modal */}
+            {
+                exitModal.isOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative">
+                            <button onClick={() => setExitModal(prev => ({ ...prev, isOpen: false }))} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+                                <X size={20} />
+                            </button>
+                            <h3 className="text-xl font-bold text-white mb-6">Booking Exit & Checkout</h3>
+
+                            {exitModal.loading ? (
+                                <div className="flex justify-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                                </div>
+                            ) : exitModal.data ? (
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
+                                            <p className="text-xs text-gray-400 uppercase mb-1">Overstay</p>
+                                            <p className="text-xl font-bold text-white">{exitModal.data.overstay_duration} hrs</p>
+                                        </div>
+                                        <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
+                                            <p className="text-xs text-gray-400 uppercase mb-1">Fee @ ${exitModal.data.hourly_rate_applied}/hr</p>
+                                            <p className="text-xl font-bold text-red-400">+${exitModal.data.overstay_fee}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-indigo-900/20 p-5 rounded-xl border border-indigo-500/30">
+                                        <div className="flex justify-between items-center">
+                                            <p className="text-indigo-300 font-medium">Total Amount Due</p>
+                                            <p className="text-3xl font-bold text-white">${exitModal.data.total_amount}</p>
+                                        </div>
+                                        <p className="text-xs text-indigo-400/60 mt-2 text-center">Includes base fee + excess charges. No refunds for early exit.</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <button
+                                            onClick={handleNotifyOverstay}
+                                            disabled={isSendingReminder}
+                                            className="w-full py-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold border border-amber-500/20 flex items-center justify-center gap-2 mb-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isSendingReminder ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-amber-500 border-t-transparent"></div>
+                                                    Sending...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Mail size={20} />
+                                                    Send Payment Reminder
+                                                </>
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => handleCompleteExit('cash')}
+                                            className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center justify-center gap-2"
+                                        >
+                                            <span className="text-lg">💵</span> Cash Received & Complete
+                                        </button>
+                                        <button
+                                            disabled
+                                            onClick={() => handleCompleteExit('online')}
+                                            className="w-full py-3 rounded-xl bg-gray-800 text-gray-400 font-medium border border-gray-700 cursor-not-allowed flex items-center justify-center gap-2 opacity-60"
+                                        >
+                                            <span>💳</span> Online Payment (Coming Soon)
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-red-400 text-center">Failed to load checkout data.</p>
+                            )}
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Custom Dialog */}
+            {
+                dialog.isOpen && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-sm p-6 relative shadow-xl transform transition-all scale-100">
+                            <h3 className={`text-xl font-bold mb-2 ${dialog.type === 'error' ? 'text-red-500' : 'text-white'}`}>
+                                {dialog.title}
+                            </h3>
+                            <p className="text-gray-300 mb-6">
+                                {dialog.message}
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                {dialog.type === 'confirm' && (
+                                    <button
+                                        onClick={closeDialog}
+                                        className="px-4 py-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                                <button
+                                    onClick={handleConfirm}
+                                    className={`px-6 py-2 rounded-lg font-bold text-white transition-colors ${dialog.type === 'error' ? 'bg-red-600 hover:bg-red-500' :
+                                        dialog.type === 'confirm' ? 'bg-indigo-600 hover:bg-indigo-500' :
+                                            'bg-indigo-600 hover:bg-indigo-500'
+                                        }`}
+                                >
+                                    {dialog.type === 'confirm' ? 'Confirm' : 'OK'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
 
     );
 };
