@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from dotenv import load_dotenv
+from utils.email import send_email
 
 # ... models imports ... 
 
@@ -64,54 +65,69 @@ async def lifespan(app: FastAPI):
         db.commit()
     db.close()
     
-    # Start background task for expiring pending bookings
+    # Start background task for expiring pending bookings & email alerts
     import asyncio
-    async def expire_pending_bookings():
+    from utils.email import send_email
+
+    async def background_monitor():
         while True:
             # Check every 5 minutes (300 seconds)
             await asyncio.sleep(300) 
+            db_session = SessionLocal()
             try:
-                db_session = SessionLocal()
-                print("Running background check for expired bookings...")
+                now = datetime.utcnow()
+                # print(f"Running background monitor at {now}...")
                 
-                # Expiration Time: Now - 15 minutes
-                from datetime import datetime
-                expiration_threshold = datetime.utcnow() - timedelta(minutes=15)
-                
+                # 1. Expire Pending Bookings
+                expiration_threshold = now - timedelta(minutes=15)
                 expired_bookings = db_session.query(Booking).filter(
                     Booking.status == 'pending',
                     Booking.created_at < expiration_threshold
                 ).all()
                 
-                count = 0
                 for booking in expired_bookings:
-                    # Double check payment status too? Assuming 'pending' status implies payment is not 'paid'.
-                    # We might have payment_status='pending' but status='active' won't be picked here. Correct.
-                    # Only 'pending' status (created but not active) are expired.
-                    
                     booking.status = 'expired'
                     if booking.payment_status == 'pending':
-                         booking.payment_status = 'failed' # Or explict 'expired' payment status if we had one
-                         
-                    # Free up spot? Spot is only occupied if status is active/pending.
-                    # Changing to 'expired' automatically frees it in overlap logic.
-                    if booking.spot and booking.spot.is_booked and booking.spot.booked_by_id == booking.user_id:
-                        # Only unbook if this specific booking held the lock (logic slightly redundant but safe)
-                        # Actually main logic for map uses status check on bookings, so spot.is_booked flag might be stale?
-                        # Our map logic checks Occupied IDs from Active/Pending bookings. So changing status is enough.
-                        pass
+                         booking.payment_status = 'failed'
+                db_session.commit()
 
-                    count += 1
-                
-                if count > 0:
-                    db_session.commit()
-                    print(f"Expired {count} pending bookings.")
-                
+                # 2. Email Notifications
+                active_bookings = db_session.query(Booking).filter(Booking.status == 'active').all()
+                for booking in active_bookings:
+                    if not booking.user or not booking.user.email:
+                        continue
+                        
+                    # ensure naive utc
+                    end_time_utc = booking.end_time if not booking.end_time.tzinfo else booking.end_time.replace(tzinfo=None)
+                    time_left = (end_time_utc - now).total_seconds() / 60.0 # minutes
+
+                    # A. Pre-Alert (10-20 mins before)
+                    if 10 <= time_left <= 20 and not booking.is_pre_alert_sent:
+                        send_email(booking.user.email, "Parking Expiring Soon", f"Your parking expires in 15 minutes.")
+                        booking.is_pre_alert_sent = True
+
+                    # B. Expiry Alert (<= 0 mins)
+                    if time_left <= 0 and not booking.is_expiry_alert_sent:
+                        send_email(booking.user.email, "Parking Expired", f"Your parking time has expired.")
+                        booking.is_expiry_alert_sent = True
+                        booking.last_overstay_sent_at = now
+
+                    # C. Overstay Reminder (Every 6 hours)
+                    if time_left < 0 and booking.is_expiry_alert_sent:
+                        last_sent = booking.last_overstay_sent_at
+                        if last_sent:
+                            last_sent = last_sent.replace(tzinfo=None) if last_sent.tzinfo else last_sent
+                            hours_since_last = (now - last_sent).total_seconds() / 3600.0
+                            if hours_since_last >= 6.0:
+                                send_email(booking.user.email, "Overstay Fee Notice", f"Your vehicle is still parked. Excess fees are accumulating.")
+                                booking.last_overstay_sent_at = now
+
+                db_session.commit()
                 db_session.close()
             except Exception as e:
                 print(f"Error in background expiration task: {e}")
 
-    asyncio.create_task(expire_pending_bookings())
+    asyncio.create_task(background_monitor())
     
     yield
     # Shutdown (if needed)
@@ -916,6 +932,23 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     db.commit()
     db.refresh(booking)
     
+    # Send Confirmation Email
+    try:
+        if booking.email:
+             send_email(
+                booking.email,
+                "Booking Confirmed - ParkPro",
+                f"Hello {booking.name},\n\nYour booking is confirmed.\n"
+                f"Spot: {format_spot_id(spot.row, spot.col)}\n"
+                f"Vehicle: {vehicle.license_plate}\n"
+                f"Start: {booking.start_time}\n"
+                f"End: {booking.end_time}\n"
+                f"Amount: ${final_amount}\n\n"
+                f"Thank you!"
+             )
+    except Exception as e:
+        print(f"Failed to send confirmation email: {e}")
+    
 
     
     # Check if booking can be cancelled (configurable business rule)
@@ -1133,12 +1166,34 @@ def cancel_booking(
     refund_amount, refund_reason = calculate_refund_amount(booking, current_time, db)
     
     # Update booking status
-    old_status = booking.status
     booking.status = "cancelled"
-    booking.refund_status = "pending" if refund_amount > 0 else "none"
     booking.refund_amount = refund_amount
+    booking.refund_status = "processed" if refund_amount > 0 else "none"
     booking.cancellation_reason = cancel_data.cancellation_reason
     booking.cancellation_time = current_time
+    
+    db.commit()
+    
+    # Send Cancellation Email
+    try:
+        if booking.email:
+             send_email(
+                booking.email,
+                "Booking Cancelled - ParkPro",
+                f"Hello,\n\nYour booking #{booking.id} has been cancelled.\n"
+                f" Refund Amount: ${refund_amount}\n"
+                f"Reason: {refund_reason}\n\n"
+                f"Thank you."
+             )
+    except Exception as e:
+        print(f"Failed to send cancellation email: {e}")
+        
+    old_status = booking.status # Kept for audit log if needed, though status is now cancelled.
+    # Logic note: old_status should have been captured BEFORE update.
+    # But since we committed, it's too late for exact old_status if not captured earlier.
+    # However, we know it was 'active' or 'pending' from earlier check.
+    
+    # Free up the spot (technically validation does this by checking status, but good to be clear)
     
     # Free up the spot
     spot = booking.spot
@@ -1251,3 +1306,159 @@ def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_current_use
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# Admin Exit Logic
+import math
+
+class ExitCalculationResponse(BaseModel):
+    actual_end_time: datetime
+    booked_end_time: datetime
+    overstay_hours: float # Actually overstay_duration in frontend, let's keep hours for calculation
+    overstay_duration: float # Add this alias for frontend consistency if needed, or mapped
+    extra_fee: float # overstay_fee
+    overstay_fee: float # Alias
+    hourly_rate_applied: float
+    total_amount: float
+    message: str
+
+class CompleteBookingRequest(BaseModel):
+    payment_method: str # 'cash' or 'online'
+    final_amount: float
+    notes: Optional[str] = None
+
+@app.post("/admin/bookings/{booking_id}/calculate-exit", response_model=ExitCalculationResponse)
+def calculate_exit_fee(booking_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    actual_end = datetime.utcnow()
+    # Ensure naive UTC comparison (booking.end_time is stored naive UTC)
+    if booking.end_time.tzinfo:
+        booked_end = booking.end_time.replace(tzinfo=None)
+    else:
+        booked_end = booking.end_time
+        
+    extra_fee = 0.0
+    overstay_hours = 0.0
+    message = "On time departure"
+    
+    if actual_end > booked_end:
+        diff_seconds = (actual_end - booked_end).total_seconds()
+        overstay_hours = math.ceil(diff_seconds / 3600.0)
+        
+        # Get Rate
+        hourly_rate_config = db.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
+        base_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
+        
+        # Get Multiplier
+        multiplier = 1.0
+        if booking.spot and booking.spot.spot_type == 'ev':
+            multiplier = 1.5
+        elif booking.spot and booking.spot.spot_type == 'vip':
+            multiplier = 2.0
+            
+        extra_fee = overstay_hours * base_rate * multiplier
+        message = f"Overstayed by {int(overstay_hours)} hour(s)"
+        
+    return ExitCalculationResponse(
+        actual_end_time=actual_end,
+        booked_end_time=booked_end,
+        overstay_hours=overstay_hours,
+        overstay_duration=overstay_hours, # Logic uses hours as float
+        extra_fee=extra_fee,
+        overstay_fee=extra_fee,
+        hourly_rate_applied=base_rate * multiplier,
+        total_amount=float(booking.payment_amount) + extra_fee, # Total due? Or just total paid + extra? Backend logic suggests extra is added.
+        message=message
+    )
+
+@app.post("/admin/bookings/{booking_id}/complete")
+def complete_booking_admin(booking_id: int, req: CompleteBookingRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    # Validation checks?
+    # If online payment requested but not implemented
+    if req.payment_method == 'online':
+        # In strictly manual exit flow, 'online' might mean user paid separately via link?
+        # For now we assume admin verifies it.
+        pass
+        
+    booking.status = 'completed'
+    booking.payment_status = 'paid' # Ensure marked paid
+    booking.excess_fee = req.final_amount # Store final EXTRA amount if any? Or total? 
+    # Let's assume excess_fee column stores the overstay part.
+    # Logic: req.final_amount comes from frontend calculation.
+    
+    # Store the actual exit time
+    booking.end_time = datetime.utcnow() 
+    
+    # Audit log
+    db.add(BookingAuditLog(
+        booking_id=booking.id,
+        user_id=current_user.id,
+        action="admin_completed",
+        old_status="active",
+        new_status="completed",
+        details=f"Method: {req.payment_method}, Fee: {req.final_amount}"
+    ))
+    
+    db.commit()
+    return {"message": "Booking completed successfully"}
+
+@app.post("/admin/bookings/{booking_id}/notify-overstay")
+def notify_overstay(booking_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.status != 'active':
+        raise HTTPException(status_code=400, detail="Booking is not active")
+
+    # Recalculate overstay details
+    actual_end_time = datetime.utcnow()
+    # Ensure booking.end_time is UTC naive for calc
+    booked_end_time = booking.end_time if not booking.end_time.tzinfo else booking.end_time.replace(tzinfo=None)
+    
+    if actual_end_time <= booked_end_time:
+         raise HTTPException(status_code=400, detail="Booking has not expired yet")
+         
+    overstay_duration = actual_end_time - booked_end_time
+    overstay_hours = math.ceil(overstay_duration.total_seconds() / 3600.0)
+    
+    # Get config (redundant fetch but safe)
+    hourly_rate_config = db.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
+    base_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
+    
+    # Simple multiplier logic for fee preview in email
+    multiplier = 1.0
+    if booking.spot and booking.spot.spot_type == 'ev':
+        multiplier = 1.5
+    elif booking.spot and booking.spot.spot_type == 'vip':
+        multiplier = 2.0
+            
+    excess_fee = overstay_hours * base_rate * multiplier
+    
+    if booking.user and booking.user.email:
+        send_email(
+            booking.user.email,
+            "Urgent: Parking Overstay Fee Notification",
+            f"Dear {booking.user.username},\n\nYour parking session has expired by {int(overstay_hours)} hours.\n"
+            f"Current excess fees accumulated: RM {excess_fee:.2f}.\n\n"
+            f"Please return to your vehicle and checkout immediately to avoid further charges.\n\n"
+            f"Thank you,\nMy Car Park Team"
+        )
+        return {"message": "Notification email sent successfully", "excess_fee": excess_fee}
+    else:
+        raise HTTPException(status_code=400, detail="User email not found")

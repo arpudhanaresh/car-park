@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Wallet } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Booking {
@@ -112,6 +112,48 @@ const AdminDashboard: React.FC = () => {
             dialog.onConfirm();
         }
         closeDialog();
+    };
+
+    // Exit / Checkout Logic
+    const [exitModal, setExitModal] = useState<{
+        isOpen: boolean;
+        bookingId: number | null;
+        data: any | null;
+        loading: boolean;
+    }>({ isOpen: false, bookingId: null, data: null, loading: false });
+
+    const initiateExit = async (bookingId: number) => {
+        setExitModal({ isOpen: true, bookingId, data: null, loading: true });
+        try {
+            const res = await admin.calculateExitFee(bookingId);
+            setExitModal({ isOpen: true, bookingId, data: res.data, loading: false });
+        } catch (error: any) {
+            console.error("Exit Calculation Failed", error);
+            setExitModal({ isOpen: false, bookingId: null, data: null, loading: false });
+            showDialog("Error", error.response?.data?.detail || "Failed to calculate exit fees", "error");
+        }
+    };
+
+    const handleCompleteExit = async (method: 'cash' | 'online') => {
+        if (!exitModal.bookingId) return;
+        try {
+            const res = await admin.completeBooking(exitModal.bookingId, { payment_method: method });
+            setExitModal({ isOpen: false, bookingId: null, data: null, loading: false });
+            showDialog("Success", `Booking completed! Total Paid: $${res.data.total_amount}`, "alert");
+            fetchData();
+        } catch (error: any) {
+            showDialog("Error", error.response?.data?.detail || "Failed to complete booking", "error");
+        }
+    };
+
+    const handleNotifyOverstay = async () => {
+        if (!exitModal.bookingId) return;
+        try {
+            const res = await admin.notifyOverstay(exitModal.bookingId);
+            showDialog("Success", `Email Sent! Excess Fee: $${res.data.excess_fee}`, "alert");
+        } catch (error: any) {
+            showDialog("Error", error.response?.data?.detail || "Failed to send notification", "error");
+        }
     };
 
     const fetchData = async () => {
@@ -429,18 +471,10 @@ const AdminDashboard: React.FC = () => {
                                             <td className="py-4 px-6">
                                                 {booking.status === 'active' && (
                                                     <button
-                                                        onClick={async () => {
-                                                            if (window.confirm("Close booking?")) {
-                                                                try {
-                                                                    const res = await parking.closeBooking(booking.id);
-                                                                    alert(res.data.excess_fee > 0 ? `Closed. Fee: ${res.data.excess_fee}` : "Closed.");
-                                                                    fetchData();
-                                                                } catch (e) { alert("Error closing"); }
-                                                            }
-                                                        }}
-                                                        className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg"
+                                                        onClick={() => initiateExit(booking.id)}
+                                                        className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
                                                     >
-                                                        Close
+                                                        Exit / Checkout
                                                     </button>
                                                 )}
                                             </td>
@@ -736,6 +770,70 @@ const AdminDashboard: React.FC = () => {
                         >
                             Save Changes
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Exit / Checkout Modal */}
+            {exitModal.isOpen && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative">
+                        <button onClick={() => setExitModal(prev => ({ ...prev, isOpen: false }))} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+                            <X size={20} />
+                        </button>
+                        <h3 className="text-xl font-bold text-white mb-6">Booking Exit & Checkout</h3>
+
+                        {exitModal.loading ? (
+                            <div className="flex justify-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                            </div>
+                        ) : exitModal.data ? (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
+                                        <p className="text-xs text-gray-400 uppercase mb-1">Overstay</p>
+                                        <p className="text-xl font-bold text-white">{exitModal.data.overstay_duration} hrs</p>
+                                    </div>
+                                    <div className="bg-gray-800/50 p-4 rounded-xl border border-white/5">
+                                        <p className="text-xs text-gray-400 uppercase mb-1">Fee @ ${exitModal.data.hourly_rate_applied}/hr</p>
+                                        <p className="text-xl font-bold text-red-400">+${exitModal.data.overstay_fee}</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-indigo-900/20 p-5 rounded-xl border border-indigo-500/30">
+                                    <div className="flex justify-between items-center">
+                                        <p className="text-indigo-300 font-medium">Total Amount Due</p>
+                                        <p className="text-3xl font-bold text-white">${exitModal.data.total_amount}</p>
+                                    </div>
+                                    <p className="text-xs text-indigo-400/60 mt-2 text-center">Includes base fee + excess charges. No refunds for early exit.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-3">
+                                    <button
+                                        onClick={handleNotifyOverstay}
+                                        className="w-full py-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold border border-amber-500/20 flex items-center justify-center gap-2 mb-2"
+                                    >
+                                        <Mail size={20} />
+                                        Send Payment Reminder
+                                    </button>
+                                    <button
+                                        onClick={() => handleCompleteExit('cash')}
+                                        className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center justify-center gap-2"
+                                    >
+                                        <span className="text-lg">💵</span> Cash Received & Complete
+                                    </button>
+                                    <button
+                                        disabled
+                                        onClick={() => handleCompleteExit('online')}
+                                        className="w-full py-3 rounded-xl bg-gray-800 text-gray-400 font-medium border border-gray-700 cursor-not-allowed flex items-center justify-center gap-2 opacity-60"
+                                    >
+                                        <span>💳</span> Online Payment (Coming Soon)
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-red-400 text-center">Failed to load checkout data.</p>
+                        )}
                     </div>
                 </div>
             )}

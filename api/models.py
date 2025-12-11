@@ -115,6 +115,11 @@ class Booking(Base):
     spot = relationship("ParkingSpot")
     vehicle = relationship("Vehicle")
 
+    # Email Notification Flags
+    is_pre_alert_sent = Column(Boolean, default=False)
+    is_expiry_alert_sent = Column(Boolean, default=False)
+    last_overstay_sent_at = Column(DateTime, nullable=True)
+
 class BookingAuditLog(Base):
     __tablename__ = "booking_audit_log"
     id = Column(Integer, primary_key=True, index=True)

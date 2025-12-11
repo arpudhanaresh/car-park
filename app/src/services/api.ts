@@ -91,6 +91,9 @@ export const admin = {
     updateSpot: (id: number, data: any) => api.put(`/admin/spots/${id}`, data),
     toggleSpotBlock: (id: number) => api.put(`/admin/spots/${id}/toggle-block`),
     getAnalytics: () => api.get('/admin/analytics'),
+    calculateExitFee: (bookingId: number) => api.post(`/admin/bookings/${bookingId}/calculate-exit`),
+    completeBooking: (bookingId: number, data: any) => api.post(`/admin/bookings/${bookingId}/complete`, data),
+    notifyOverstay: (bookingId: number) => api.post(`/admin/bookings/${bookingId}/notify-overstay`),
 };
 
 export default api;
