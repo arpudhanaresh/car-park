@@ -1227,6 +1227,41 @@ def cancel_booking(
         f"Cancelled by user. Reason: {cancel_data.cancellation_reason or 'Not provided'}. {refund_reason}"
     )
     
+    # Send Email to User
+    try:
+        current_year = datetime.utcnow().year
+        send_email(
+            booking.user.email,
+            "Booking Cancelled - ParkPro",
+            f"Hello {booking.user.username},\n\nYour booking #{booking.id} has been cancelled.\n\nRefund Status: {refund_reason}\nRefund Amount: MYR {refund_amount:.2f}\n\nWe hope to see you again soon."
+        )
+        
+        # Send Email to Admin(s)
+        # Fetch from DB Config first, fallback to Env
+        admin_emails_config = db.query(SystemConfig).filter(SystemConfig.key == "admin_notification_emails").first()
+        
+        admin_emails = []
+        if admin_emails_config and admin_emails_config.value:
+            admin_emails = [e.strip() for e in admin_emails_config.value.split(",") if e.strip()]
+        
+        if not admin_emails:
+            # Fallback to env or sender
+            env_admin = os.getenv("ADMIN_EMAIL")
+            if env_admin:
+                admin_emails = [env_admin]
+            else:
+                admin_emails = [os.getenv("MAIL_FROM")]
+                
+        for email in admin_emails:
+            if email: # Safety check
+                send_email(
+                    email,
+                    f"Booking Cancelled: #{booking.id}",
+                    f"Admin Alert:\n\nUser {booking.user.username} (Email: {booking.user.email}) has cancelled booking #{booking.id}.\n\nReason: {cancel_data.cancellation_reason or 'Not provided'}\nRefund: MYR {refund_amount:.2f} ({refund_reason})\nTime: {datetime.utcnow()}"
+                )
+    except Exception as e:
+        print(f"Failed to send cancellation emails: {e}")
+
     db.commit()
     
 

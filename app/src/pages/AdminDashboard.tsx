@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Github } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Booking {
@@ -275,7 +275,12 @@ const AdminDashboard: React.FC = () => {
 
 
     const updateConfigValue = (key: string, value: string) => {
-        setConfigs(configs.map(c => c.key === key ? { ...c, value } : c));
+        const exists = configs.find(c => c.key === key);
+        if (exists) {
+            setConfigs(configs.map(c => c.key === key ? { ...c, value } : c));
+        } else {
+            setConfigs([...configs, { key, value, description: 'Added via Dashboard' }]);
+        }
     };
 
     return (
@@ -671,39 +676,78 @@ const AdminDashboard: React.FC = () => {
                     )}
 
                     {activeTab === 'settings' && (
-                        <div className="max-w-2xl mx-auto space-y-8">
-                            <div className="flex items-center gap-4">
+                        <div className="max-w-4xl mx-auto space-y-8">
+                            <div className="flex items-center gap-4 mb-6">
                                 <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-                                    <Sliders size={24} />
+                                    <Github className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-white">System Configuration</h3>
-                                    <p className="text-sm text-gray-400">Manage cancellation rules and fees</p>
+                                    <h3 className="text-xl font-bold text-white">System Configuration</h3>
+                                    <p className="text-sm text-gray-400">Manage rates, cancellation rules, and notifications</p>
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                {configs.map((config) => (
-                                    <div key={config.key} className="bg-white/5 p-4 rounded-xl border border-white/10">
-                                        <label className="block text-sm font-medium text-indigo-300 mb-1">{config.key}</label>
-                                        <p className="text-xs text-gray-400 mb-3">{config.description}</p>
-                                        <input
-                                            type="text"
-                                            value={config.value}
-                                            onChange={(e) => updateConfigValue(config.key, e.target.value)}
-                                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        />
+                            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6">
+                                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 text-white">
+                                    <Settings className="w-5 h-5 text-purple-400" />
+                                    General Settings
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-2">Hourly Rate (MYR)</label>
+                                            <input
+                                                type="number"
+                                                value={configs.find(c => c.key === 'hourly_rate')?.value || ''}
+                                                onChange={(e) => updateConfigValue('hourly_rate', e.target.value)}
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-2">Cancellation Rule 1 (Hours)</label>
+                                            <input
+                                                type="number"
+                                                value={configs.find(c => c.key === 'cancellation_rule_1_hours')?.value || ''}
+                                                onChange={(e) => updateConfigValue('cancellation_rule_1_hours', e.target.value)}
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                                                title="Hours before start for full refund"
+                                            />
+                                        </div>
                                     </div>
-                                ))}
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-2">Admin Notification Emails (Comma-separated)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="admin1@example.com, admin2@example.com"
+                                                value={configs.find(c => c.key === 'admin_notification_emails')?.value || ''}
+                                                onChange={(e) => updateConfigValue('admin_notification_emails', e.target.value)}
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">Receive alerts for cancellations and refunds.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-400 text-sm mb-2">Cancellation Rule 2 (Refund %)</label>
+                                            <input
+                                                type="number"
+                                                value={configs.find(c => c.key === 'cancellation_rule_2_percent')?.value || ''}
+                                                onChange={(e) => updateConfigValue('cancellation_rule_2_percent', e.target.value)}
+                                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <button
-                                onClick={handleSaveConfig}
-                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5"
-                            >
-                                <Save size={20} />
-                                Save Changes
-                            </button>
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={handleSaveConfig}
+                                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 hover:-translate-y-0.5"
+                                >
+                                    <Save size={20} />
+                                    Save System Configuration
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

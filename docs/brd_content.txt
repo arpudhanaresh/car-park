@@ -1,0 +1,29 @@
+Business Requirements Document (BRD)
+**Project Title:** Parking Lot Booking System (Malaysia)**Version:** 2.0**Date:** November 2025**Prepared By:** Ascertain Technologies Sdn Bhd**Integrated Payment Gateway:** RinggitPay**Hosting Environment:** AWS Cloud (Malaysia Region)
+🚗 Parking Lot Booking System (Malaysia)
+We’re excited to announce the launch of the Parking Lot Booking System — an efficient way to reserve your parking space in advance.Through this system, users can:
+View available parking lots in real-time
+Book preferred slots with instant confirmation
+Make secure payments via RinggitPay
+Manage bookings directly from their profile
+The system is hosted on AWS Cloud ensuring reliability, performance, and data security.
+Please review the following section for detailed information on the cancellation process.
+1. Cancel Booking Functionality
+The system will allow users to cancel a confirmed parking lot booking subject to configurable business rules. This feature enhances user flexibility while protecting the property management from last-minute cancellations.
+1.1 Business Rules & Validations
+Users can cancel bookings only before the booking start date/time.
+Cancellation requests within the last X hours (configurable, e.g., 2 hours before start) will not be allowed.
+For refundable bookings, system will trigger refund via RinggitPay API subject to refund policy.
+Partial refund percentage can be configured based on cancellation window (e.g., 100% if >24h, 50% if <24h).
+Once cancelled, lot becomes immediately available for rebooking.
+System logs cancellation event with timestamp and user ID for audit.
+Email notification (cancellation confirmation) sent to user and admin.
+Non-refundable bookings will show alert message before confirmation.
+1.2 Workflow
+1. User navigates to ‘My Bookings’ → Selects an active booking → Clicks ‘Cancel’.2. System validates cancellation eligibility (date/time, payment status, refund type).3. If valid, triggers refund process (if applicable) and updates booking status to ‘Cancelled’.4. Email confirmation and refund details sent to user.
+1.3 Database & API Impact
+Add new field `cancellation_reason` and `cancellation_time` in Booking table.
+Update booking status workflow to include ‘Cancelled’.
+RinggitPay integration: initiate refund API call with transaction reference.
+Refund webhook updates system once refund status is confirmed.
+Audit trail maintained in `booking_audit_log` table.
