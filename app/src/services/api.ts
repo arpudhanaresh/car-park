@@ -47,6 +47,9 @@ export const auth = {
   },
   signup: (data: any) => api.post('/signup', data),
   getProfile: () => api.get('/users/me'),
+  forgotPassword: (email: string) => api.post('/forgot-password', { email }),
+  verifyOtp: (email: string, otp: string) => api.post('/verify-otp', { email, otp }),
+  resetPassword: (data: any) => api.post('/reset-password', data),
 };
 
 export const parking = {

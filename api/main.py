@@ -11,11 +11,18 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
+from passlib.context import CryptContext
 from jose import JWTError, jwt
+import random
+import string
 from dotenv import load_dotenv
 from utils.email import send_email
 
 # ... models imports ... 
+from models import (
+    Base, User, ParkingSpot, Booking, Vehicle, PromoCode, SystemConfig, 
+    BookingStatus, RefundStatus, BookingAuditLog, LayoutConfigDB, PasswordReset
+) 
 
 
 
@@ -26,6 +33,19 @@ from models import (
     AnalyticsResponse, ChartData, UpdateSpot, PromoCode, PromoCodeCreate, PromoCodeResponse, SystemConfig,
     UserResponse
 )
+
+# Pydantic Models for Password Reset
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class OTPVerifyRequest(BaseModel):
+    email: str
+    otp: str
+
+class NewPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
 
 # Pydantic Models for Config
 class ConfigItem(BaseModel):
@@ -1462,3 +1482,81 @@ def notify_overstay(booking_id: int, current_user: User = Depends(get_current_us
         return {"message": "Notification email sent successfully", "excess_fee": excess_fee}
     else:
         raise HTTPException(status_code=400, detail="User email not found")
+
+@app.post("/forgot-password")
+def forgot_password(req: PasswordResetRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+        # Return success even if user not found to prevent enumeration
+        return {"message": "If this email exists, an OTP has been sent."}
+    
+    # Generate OTP
+    otp = ''.join(random.choices(string.digits, k=6))
+    expires = datetime.utcnow() + timedelta(minutes=15)
+    
+    reset_entry = PasswordReset(
+        user_id=user.id,
+        email=req.email,
+        otp=otp,
+        expires_at=expires
+    )
+    db.add(reset_entry)
+    db.commit()
+    
+    # Send Email
+    try:
+        send_email(
+            req.email,
+            "Password Reset OTP - ParkPro",
+            f"Hello {user.username},\n\nYour OTP for password reset is: {otp}\n\nThis OTP is valid for 15 minutes.\n\nIf you did not request this, please ignore."
+        )
+    except Exception as e:
+        print(f"Failed to send OTP: {e}")
+        
+    return {"message": "If this email exists, an OTP has been sent."}
+
+@app.post("/verify-otp")
+def verify_otp(req: OTPVerifyRequest, db: Session = Depends(get_db)):
+    record = db.query(PasswordReset).filter(
+        PasswordReset.email == req.email,
+        PasswordReset.otp == req.otp,
+        PasswordReset.is_verified == False,
+        PasswordReset.expires_at > datetime.utcnow()
+    ).order_by(PasswordReset.created_at.desc()).first()
+    
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+        
+    record.is_verified = True
+    db.commit()
+    
+    return {"message": "OTP Verified"}
+
+@app.post("/reset-password")
+def reset_password(req: NewPasswordRequest, db: Session = Depends(get_db)):
+    # Verify again
+    record = db.query(PasswordReset).filter(
+        PasswordReset.email == req.email,
+        PasswordReset.otp == req.otp,
+        PasswordReset.is_verified == True, # Must be verified
+        PasswordReset.expires_at > datetime.utcnow()
+    ).order_by(PasswordReset.created_at.desc()).first()
+    
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid request or OTP expired")
+        
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+         raise HTTPException(status_code=404, detail="User not found")
+         
+    # Update Password
+    user.hashed_password = pwd_context.hash(req.new_password)
+    
+    # Invalidate OTP (delete or mark used)
+    # Ideally mark used, but for now we delete or just rely on expiry. 
+    # Let's delete this specific record to prevent reuse.
+    db.delete(record)
+    
+    db.commit()
+    
+    return {"message": "Password reset successfully"}

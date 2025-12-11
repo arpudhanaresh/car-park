@@ -140,6 +140,16 @@ class LayoutConfigDB(Base):
     rows = Column(Integer)
     cols = Column(Integer)
 
+class PasswordReset(Base):
+    __tablename__ = "password_resets"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True) # Optional link to user
+    email = Column(String(100), index=True, nullable=False)
+    otp = Column(String(6), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 
 
 # Pydantic Schemas

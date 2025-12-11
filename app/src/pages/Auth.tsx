@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../services/api';
 import { Car, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
@@ -169,6 +169,14 @@ const Auth: React.FC = () => {
                                 />
                             </div>
                         </div>
+
+                        {isLogin && (
+                            <div className="flex justify-end">
+                                <Link to="/forgot-password" className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors hover:underline">
+                                    Forgot Password?
+                                </Link>
+                            </div>
+                        )}
 
                         {!isLogin && (
                             <div className="space-y-1.5">
