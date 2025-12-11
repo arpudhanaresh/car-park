@@ -29,7 +29,7 @@ def seed_admin():
     try:
         username = "arpudhanareshadmin"
         email = "arpudha@admin.com" 
-        password = "arpudha@123"
+        password = "Nare@9962618791"
         
         # Check if exists
         user = db.query(User).filter(User.username == username).first()

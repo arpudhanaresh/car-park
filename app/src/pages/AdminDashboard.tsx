@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Wallet } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Booking {
