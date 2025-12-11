@@ -140,7 +140,10 @@ const AdminDashboard: React.FC = () => {
     const handleCompleteExit = async (method: 'cash' | 'online') => {
         if (!exitModal.bookingId) return;
         try {
-            const res = await admin.completeBooking(exitModal.bookingId, { payment_method: method });
+            const res = await admin.completeBooking(exitModal.bookingId, {
+                payment_method: method,
+                final_amount: exitModal.data?.total_amount || 0
+            });
             setExitModal({ isOpen: false, bookingId: null, data: null, loading: false });
             showDialog("Success", `Booking completed! Total Paid: $${res.data.total_amount}`, "alert");
             fetchData();

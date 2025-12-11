@@ -13,8 +13,12 @@ from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+import math
+import os
 import random
 import string
+from fastapi.responses import StreamingResponse
+from utils.pdf import generate_booking_receipt
 from dotenv import load_dotenv
 from utils.email import send_email
 
@@ -993,6 +997,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         status=booking.status,
         refund_status=booking.refund_status,
         refund_amount=float(booking.refund_amount),
+        excess_fee=float(booking.excess_fee or 0),
         created_at=booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None,
         can_cancel=can_cancel,
         latest_order_id=booking.latest_order_id
@@ -1037,6 +1042,7 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             status=booking.status,
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),
+            excess_fee=float(booking.excess_fee or 0),
             created_at=response_created,
             can_cancel=can_cancel,
             latest_order_id=booking.latest_order_id
@@ -1156,6 +1162,31 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
         ))
     
     return result
+
+@app.get("/bookings/{booking_id}/receipt")
+def download_receipt(
+    booking_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+        
+    # Check authorization
+    if current_user.role != "admin" and booking.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this receipt")
+        
+    # Generate PDF
+    pdf_buffer = generate_booking_receipt(booking)
+    
+    filename = f"Receipt_Booking_{booking.id}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer, 
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @app.delete("/bookings/{booking_id}")
 def cancel_booking(
@@ -1450,13 +1481,16 @@ def complete_booking_admin(booking_id: int, req: CompleteBookingRequest, current
         pass
         
     booking.status = 'completed'
-    booking.payment_status = 'paid' # Ensure marked paid
-    booking.excess_fee = req.final_amount # Store final EXTRA amount if any? Or total? 
-    # Let's assume excess_fee column stores the overstay part.
-    # Logic: req.final_amount comes from frontend calculation.
+    booking.payment_status = 'paid'
     
-    # Store the actual exit time
-    booking.end_time = datetime.utcnow() 
+    # Calculate proper excess fee (Total - Initial Payment)
+    # Ensure we handle potential float/decimal mismatches
+    final_amount = float(req.final_amount)
+    initial_payment = float(booking.payment_amount or 0)
+    excess = final_amount - initial_payment
+    
+    booking.excess_fee = excess if excess > 0 else 0
+    booking.end_time = datetime.utcnow()
     
     # Audit log
     db.add(BookingAuditLog(
@@ -1465,11 +1499,11 @@ def complete_booking_admin(booking_id: int, req: CompleteBookingRequest, current
         action="admin_completed",
         old_status="active",
         new_status="completed",
-        details=f"Method: {req.payment_method}, Fee: {req.final_amount}"
+        details=f"Method: {req.payment_method}, Final Total: {final_amount}"
     ))
     
     db.commit()
-    return {"message": "Booking completed successfully"}
+    return {"message": "Booking completed successfully", "total_amount": final_amount}
 
 @app.post("/admin/bookings/{booking_id}/notify-overstay")
 def notify_overstay(booking_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1646,3 +1680,15 @@ def process_manual_refund(
     
     db.commit()
     return {"message": "Refund marked as processed successfully", "status": "refunded"}
+
+@app.get("/debug/booking/51")
+def debug_booking_51(db: Session = Depends(get_db)):
+    b = db.query(Booking).filter(Booking.id == 51).first()
+    if b:
+         print(f"DEBUG: ID={b.id}, EXCESS={b.excess_fee}, STATUS={b.status}")
+         return {
+             "id": b.id, 
+             "excess_fee": b.excess_fee,
+             "status": b.status
+         }
+    return {"error": "not found"}

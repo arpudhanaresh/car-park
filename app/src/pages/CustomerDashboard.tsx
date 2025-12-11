@@ -20,6 +20,7 @@ interface Booking {
     can_cancel: boolean;
     latest_order_id?: string;
     refund_status?: string;
+    excess_fee?: number;
 }
 
 const CustomerDashboard: React.FC = () => {
@@ -235,7 +236,7 @@ const CustomerDashboard: React.FC = () => {
 
                             <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <span className="font-bold text-xl text-white text-glow whitespace-nowrap">
-                                    RM {booking.payment_amount}
+                                    RM {((booking.payment_amount || 0) + (booking.excess_fee || 0)).toFixed(2)}
                                 </span>
                                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                     {booking.status === 'active' && (
@@ -276,6 +277,30 @@ const CustomerDashboard: React.FC = () => {
                                         >
                                             <Clock size={14} />
                                             Check Status
+                                        </button>
+                                    )}
+                                    {/* Download Receipt Button */}
+                                    {['completed', 'cancelled'].includes(booking.status) && (
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const res = await parking.downloadReceipt(booking.id);
+                                                    const url = window.URL.createObjectURL(new Blob([res.data]));
+                                                    const link = document.createElement('a');
+                                                    link.href = url;
+                                                    link.setAttribute('download', `Receipt_Booking_${booking.id}.pdf`);
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    link.remove();
+                                                } catch (e) {
+                                                    console.error("Download failed", e);
+                                                    alert("Failed to download receipt.");
+                                                }
+                                            }}
+                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700"
+                                        >
+                                            <span className="text-lg">📄</span>
+                                            Receipt
                                         </button>
                                     )}
                                 </div>

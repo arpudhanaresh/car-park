@@ -73,6 +73,7 @@ export const parking = {
   getPublicConfig: () => api.get('/config/public'),
   initiatePayment: (bookingId: number) => api.post(`/payment/initiate/${bookingId}`),
   checkPaymentStatus: (bookingId: number, orderId: string) => api.post(`/payment/check-status/${bookingId}?order_id=${orderId}`),
+  downloadReceipt: (bookingId: number) => api.get(`/bookings/${bookingId}/receipt`, { responseType: 'blob' }),
 };
 
 export const vehicles = {

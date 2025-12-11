@@ -100,7 +100,6 @@ class Booking(Base):
     promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), nullable=True)
     status = Column(String(20), default="active")
     refund_status = Column(String(20), default="none")
-    refund_status = Column(String(20), default="none")
     refund_amount = Column(Numeric(10, 2), default=0)
     excess_fee = Column(Numeric(10, 2), default=0)
     latest_order_id = Column(String(100), nullable=True)
