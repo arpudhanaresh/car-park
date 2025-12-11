@@ -44,6 +44,9 @@ const AdminDashboard: React.FC = () => {
     // Data States
     const [layout, setLayout] = useState({ rows: 5, cols: 5 });
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [bookingsPage, setBookingsPage] = useState(1);
+    const [bookingsTotal, setBookingsTotal] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
     const [promos, setPromos] = useState<PromoCode[]>([]);
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
 
@@ -168,12 +171,11 @@ const AdminDashboard: React.FC = () => {
     };
 
     const fetchData = async () => {
-
-
+        setIsLoading(true);
         try {
             const [layoutRes, bookingsRes, promosRes, configsRes, analyticsRes] = await Promise.all([
                 parking.getLayout(),
-                parking.getAllBookings(),
+                parking.getAllBookings(bookingsPage, 10),
                 admin.getPromos(),
                 admin.getConfig(),
                 admin.getAnalytics()
@@ -181,18 +183,22 @@ const AdminDashboard: React.FC = () => {
 
             setLayout(prev => ({ ...prev, rows: layoutRes.data.rows, cols: layoutRes.data.cols }));
             setSpots(layoutRes.data.spots);
-            setBookings(bookingsRes.data);
+            setBookings(bookingsRes.data.items);
+            setBookingsTotal(bookingsRes.data.total);
             setPromos(promosRes.data);
             setConfigs(configsRes.data);
             setAnalytics(analyticsRes.data);
+            setAnalytics(analyticsRes.data);
         } catch (error) {
             console.error("Failed to fetch data", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [bookingsPage]);
 
     const handleSaveLayout = async () => {
         try {
@@ -445,83 +451,118 @@ const AdminDashboard: React.FC = () => {
                     )}
 
                     {activeTab === 'bookings' && (
-                        <div className="overflow-x-auto -mx-6 md:mx-0 md:rounded-xl border border-white/5">
-                            <table className="w-full text-left border-collapse min-w-full">
-                                <thead>
-                                    <tr className="border-b border-white/10 text-xs font-medium text-gray-400 uppercase tracking-wider bg-white/5">
-                                        <th className="py-4 px-6">ID</th>
-                                        <th className="py-4 px-6">Customer</th>
-                                        <th className="py-4 px-6">Vehicle</th>
-                                        <th className="py-4 px-6">Spot</th>
-                                        <th className="py-4 px-6">Time</th>
-                                        <th className="py-4 px-6">Status</th>
-                                        <th className="py-4 px-6">Amount</th>
-                                        <th className="py-4 px-6">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-sm text-gray-300 divide-y divide-white/5">
-                                    {bookings.map((booking) => (
-                                        <tr key={booking.id} className="hover:bg-white/5 transition-colors">
-                                            <td className="py-4 px-6 font-mono text-indigo-400">#{booking.id}</td>
-                                            <td className="py-4 px-6">
-                                                <div>
-                                                    <p className="font-medium text-white">{booking.name}</p>
-                                                    <p className="text-xs text-gray-500">{booking.email}</p>
-                                                </div>
-                                            </td>
-                                            <td className="py-4 px-6 font-mono">{booking.vehicle.license_plate}</td>
-                                            <td className="py-4 px-6 font-bold text-white">{booking.spot_info}</td>
-                                            <td className="py-4 px-6 text-xs text-gray-400">
-                                                <p>Start: {new Date(booking.start_time).toLocaleString()}</p>
-                                                <p>End: {new Date(booking.end_time).toLocaleString()}</p>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider
-                                                    ${booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                                        booking.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                                            booking.status === 'completed' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
-                                                                'bg-gray-700 text-gray-400 border border-gray-600'}`}>
-                                                    {booking.status}
-                                                </span>
-                                            </td>
-                                            <td className="py-4 px-6">${booking.payment_amount}</td>
-                                            <td className="py-4 px-6">
-                                                {booking.status === 'active' && (
-                                                    <button
-                                                        onClick={() => initiateExit(booking.id)}
-                                                        className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
-                                                    >
-                                                        Exit / Checkout
-                                                    </button>
-                                                )}
-                                                {booking.status === 'cancelled' && booking.refund_status === 'pending' && (
-                                                    <button
-                                                        onClick={async () => {
-                                                            try {
-                                                                await admin.processRefund(booking.id);
-                                                                showDialog("Success", "Refund marked as processed!", "alert");
-                                                                fetchData();
-                                                            } catch (err: any) {
-                                                                showDialog("Error", err.response?.data?.detail || "Failed to process refund", "error");
-                                                            }
-                                                        }}
-                                                        className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
-                                                    >
-                                                        Process Refund
-                                                    </button>
-                                                )}
-                                                {booking.status === 'cancelled' && booking.refund_status === 'refunded' && (
-                                                    <span className="text-xs text-green-400 font-medium flex items-center gap-1">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                        Refunded
-                                                    </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <>
+                            {isLoading ? (
+                                <div className="text-center py-20">
+                                    <div className="animate-spin w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                    <p className="text-gray-400">Loading bookings...</p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="overflow-x-auto -mx-6 md:mx-0 md:rounded-xl border border-white/5">
+                                        <table className="w-full text-left border-collapse min-w-full">
+                                            <thead>
+                                                <tr className="border-b border-white/10 text-xs font-medium text-gray-400 uppercase tracking-wider bg-white/5">
+                                                    <th className="py-4 px-6">ID</th>
+                                                    <th className="py-4 px-6">Customer</th>
+                                                    <th className="py-4 px-6">Vehicle</th>
+                                                    <th className="py-4 px-6">Spot</th>
+                                                    <th className="py-4 px-6">Time</th>
+                                                    <th className="py-4 px-6">Status</th>
+                                                    <th className="py-4 px-6">Amount</th>
+                                                    <th className="py-4 px-6">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="text-sm text-gray-300 divide-y divide-white/5">
+                                                {bookings.map((booking) => (
+                                                    <tr key={booking.id} className="hover:bg-white/5 transition-colors">
+                                                        <td className="py-4 px-6 font-mono text-indigo-400">#{booking.id}</td>
+                                                        <td className="py-4 px-6">
+                                                            <div>
+                                                                <p className="font-medium text-white">{booking.name}</p>
+                                                                <p className="text-xs text-gray-500">{booking.email}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6 font-mono">{booking.vehicle.license_plate}</td>
+                                                        <td className="py-4 px-6 font-bold text-white">{booking.spot_info}</td>
+                                                        <td className="py-4 px-6 text-xs text-gray-400">
+                                                            <p>Start: {new Date(booking.start_time).toLocaleString()}</p>
+                                                            <p>End: {new Date(booking.end_time).toLocaleString()}</p>
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider
+                                                        ${booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                                                    booking.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                                                        booking.status === 'completed' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                                                            'bg-gray-700 text-gray-400 border border-gray-600'}`}>
+                                                                {booking.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-4 px-6">${booking.payment_amount}</td>
+                                                        <td className="py-4 px-6">
+                                                            {booking.status === 'active' && (
+                                                                <button
+                                                                    onClick={() => initiateExit(booking.id)}
+                                                                    className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
+                                                                >
+                                                                    Exit / Checkout
+                                                                </button>
+                                                            )}
+                                                            {booking.status === 'cancelled' && booking.refund_status === 'pending' && (
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            await admin.processRefund(booking.id);
+                                                                            showDialog("Success", "Refund marked as processed!", "alert");
+                                                                            fetchData();
+                                                                        } catch (err: any) {
+                                                                            showDialog("Error", err.response?.data?.detail || "Failed to process refund", "error");
+                                                                        }
+                                                                    }}
+                                                                    className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
+                                                                >
+                                                                    Process Refund
+                                                                </button>
+                                                            )}
+                                                            {booking.status === 'cancelled' && booking.refund_status === 'refunded' && (
+                                                                <span className="text-xs text-green-400 font-medium flex items-center gap-1">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                                                    Refunded
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="flex justify-between items-center mt-4 px-2">
+                                        <div className="text-sm text-gray-400">
+                                            Showing {bookings.length} of {bookingsTotal} bookings
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                disabled={bookingsPage === 1 || isLoading}
+                                                onClick={() => setBookingsPage(p => Math.max(1, p - 1))}
+                                                className="px-4 py-2 bg-gray-800 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition"
+                                            >
+                                                Previous
+                                            </button>
+                                            <button
+                                                disabled={bookingsPage * 10 >= bookingsTotal || isLoading}
+                                                onClick={() => setBookingsPage(p => p + 1)}
+                                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 transition"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+
+                        </>
                     )}
 
                     {activeTab === 'analytics' && analytics && (

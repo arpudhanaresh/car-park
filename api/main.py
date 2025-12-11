@@ -61,6 +61,13 @@ class ConfigItem(BaseModel):
 class ConfigUpdate(BaseModel):
     configs: List[ConfigItem]
 
+class PaginatedBookingResponse(BaseModel):
+    items: List[BookingResponse]
+    total: int
+    page: int
+    size: int
+    pages: int
+
 # Load env vars
 load_dotenv()
 
@@ -1012,13 +1019,26 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         latest_order_id=booking.latest_order_id
     )
 
-@app.get("/bookings", response_model=List[BookingResponse])
-def get_user_bookings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.get("/bookings", response_model=PaginatedBookingResponse)
+def get_user_bookings(
+    page: int = 1,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     from datetime import datetime, timezone
     
-    bookings = db.query(Booking).filter(
+    query = db.query(Booking).filter(
         Booking.user_id == current_user.id
-    ).order_by(Booking.created_at.desc()).all()
+    )
+    
+    total = query.count()
+    total_pages = math.ceil(total / limit)
+    
+    bookings = query.order_by(Booking.created_at.desc())\
+        .offset((page - 1) * limit)\
+        .limit(limit)\
+        .all()
     
     result = []
     for booking in bookings:
@@ -1057,7 +1077,13 @@ def get_user_bookings(current_user: User = Depends(get_current_user), db: Sessio
             latest_order_id=booking.latest_order_id
         ))
     
-    return result
+    return PaginatedBookingResponse(
+        items=result,
+        total=total,
+        page=page,
+        size=limit,
+        pages=total_pages
+    )
 
 
 
@@ -1125,14 +1151,27 @@ def close_booking(booking_id: int, current_user: User = Depends(get_current_user
         latest_order_id=booking.latest_order_id
     )
 
-@app.get("/admin/bookings", response_model=List[BookingResponse])
-def get_all_bookings(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.get("/admin/bookings", response_model=PaginatedBookingResponse)
+def get_all_bookings(
+    page: int = 1,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     
     from datetime import datetime, timezone
+    
+    query = db.query(Booking)
+    
+    total = query.count()
+    total_pages = math.ceil(total / limit)
         
-    bookings = db.query(Booking).order_by(Booking.created_at.desc()).all()
+    bookings = query.order_by(Booking.created_at.desc())\
+        .offset((page - 1) * limit)\
+        .limit(limit)\
+        .all()
     
     result = []
     for booking in bookings:
@@ -1170,7 +1209,13 @@ def get_all_bookings(current_user: User = Depends(get_current_user), db: Session
             latest_order_id=booking.latest_order_id
         ))
     
-    return result
+    return PaginatedBookingResponse(
+        items=result,
+        total=total,
+        page=page,
+        size=limit,
+        pages=total_pages
+    )
 
 @app.get("/bookings/{booking_id}/receipt")
 def download_receipt(

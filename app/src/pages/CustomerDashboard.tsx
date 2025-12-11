@@ -25,6 +25,8 @@ interface Booking {
 
 const CustomerDashboard: React.FC = () => {
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [bookingsPage, setBookingsPage] = useState(1);
+    const [bookingsTotal, setBookingsTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
@@ -36,9 +38,11 @@ const CustomerDashboard: React.FC = () => {
 
 
     const fetchBookings = async () => {
+        setLoading(true);
         try {
-            const response = await parking.getUserBookings();
-            setBookings(response.data);
+            const response = await parking.getUserBookings(bookingsPage, 10);
+            setBookings(response.data.items);
+            setBookingsTotal(response.data.total);
         } catch (error) {
             console.error("Failed to fetch bookings", error);
         } finally {
@@ -48,7 +52,7 @@ const CustomerDashboard: React.FC = () => {
 
     useEffect(() => {
         fetchBookings();
-    }, []);
+    }, [bookingsPage]);
 
     const handleCancelClick = (id: number) => {
         setSelectedBookingId(id);
@@ -177,137 +181,161 @@ const CustomerDashboard: React.FC = () => {
                     <p className="text-gray-400">Loading your bookings...</p>
                 </div>
             ) : bookings.length > 0 ? (
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    {bookings.map((booking) => (
-                        <div key={booking.id} className="glass-card rounded-2xl p-6 hover:bg-gray-800/50 transition-all duration-300 group">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20 group-hover:border-indigo-500/40 transition-colors">
-                                    <Car size={24} />
-                                </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
-                  ${booking.status === 'cancelled' ? (
-                                        booking.refund_status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                                            booking.refund_status === 'completed' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
-                                                'bg-gray-700 text-red-400 border border-red-500/20'
-                                    ) :
-                                        booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                            booking.payment_status === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                                booking.payment_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                                                    'bg-gray-700 text-gray-400 border border-gray-600'}`}>
-                                    {booking.status === 'cancelled' ? (
-                                        booking.refund_status === 'pending' ? 'Refund Pending' :
-                                            booking.refund_status === 'completed' ? 'Refunded' :
-                                                'Cancelled'
-                                    ) :
-                                        booking.status === 'active' ? 'Active' :
-                                            booking.payment_status === 'failed' ? 'Payment Failed' :
-                                                booking.payment_status === 'pending' ? 'Payment Pending' :
-                                                    booking.status}
-                                </span>
-                            </div>
-
-                            <div className="space-y-4 mb-6">
-                                <div className="flex items-center gap-3 text-gray-300">
-                                    <MapPin size={18} className="text-indigo-400" />
-                                    <span className="font-bold text-lg">{booking.spot_info}</span>
-                                </div>
-                                <div className="flex items-center gap-3 text-gray-400">
-                                    <Calendar size={18} className="text-gray-500" />
-                                    <span className="text-sm">
-                                        {new Date(booking.start_time).toLocaleDateString()}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-3 text-gray-400">
-                                    <Clock size={18} className="text-gray-500" />
-                                    <span className="text-sm">
-                                        {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
-                                        {new Date(booking.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-3 text-gray-400">
-                                    <div className="w-5 h-5 rounded bg-gray-800 border border-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-500">
-                                        LP
+                <>
+                    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                        {bookings.map((booking) => (
+                            <div key={booking.id} className="glass-card rounded-2xl p-6 hover:bg-gray-800/50 transition-all duration-300 group">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20 group-hover:border-indigo-500/40 transition-colors">
+                                        <Car size={24} />
                                     </div>
-                                    <span className="text-sm font-mono bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50 text-gray-300">
-                                        {booking.vehicle.license_plate}
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
+                  ${booking.status === 'cancelled' ? (
+                                            booking.refund_status === 'pending' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
+                                                booking.refund_status === 'completed' ? 'bg-teal-500/10 text-teal-400 border border-teal-500/20' :
+                                                    'bg-gray-700 text-red-400 border border-red-500/20'
+                                        ) :
+                                            booking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                                booking.payment_status === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                                    booking.payment_status === 'pending' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                                                        'bg-gray-700 text-gray-400 border border-gray-600'}`}>
+                                        {booking.status === 'cancelled' ? (
+                                            booking.refund_status === 'pending' ? 'Refund Pending' :
+                                                booking.refund_status === 'completed' ? 'Refunded' :
+                                                    'Cancelled'
+                                        ) :
+                                            booking.status === 'active' ? 'Active' :
+                                                booking.payment_status === 'failed' ? 'Payment Failed' :
+                                                    booking.payment_status === 'pending' ? 'Payment Pending' :
+                                                        booking.status}
                                     </span>
                                 </div>
-                            </div>
 
-                            <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                <span className="font-bold text-xl text-white text-glow whitespace-nowrap">
-                                    RM {((booking.payment_amount || 0) + (booking.excess_fee || 0)).toFixed(2)}
-                                </span>
-                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                    {booking.status === 'active' && (
-                                        <button
-                                            onClick={() => {
-                                                setQrBooking(booking);
-                                                setShowQRModal(true);
-                                            }}
-                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/20"
-                                        >
-                                            <QrCode size={14} />
-                                            Show QR
-                                        </button>
-                                    )}
-                                    {booking.can_cancel && (
-                                        <button
-                                            onClick={() => handleCancelClick(booking.id)}
-                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
-                                        >
-                                            <Trash2 size={14} />
-                                            Cancel <span className="hidden sm:inline opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
-                                            <span className="sm:hidden opacity-50 ml-1 text-[10px]">(Fee)</span>
-                                        </button>
-                                    )}
-                                    {booking.payment_status === 'failed' && booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
-                                        <button
-                                            onClick={() => handleRetry(booking.id)}
-                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-white hover:text-white transition-colors bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg shadow-lg shadow-indigo-500/20"
-                                        >
-                                            <Clock size={14} />
-                                            Retry Payment
-                                        </button>
-                                    )}
-                                    {booking.payment_status === 'pending' && booking.status !== 'cancelled' && (
-                                        <button
-                                            onClick={() => handleCheckStatus(booking.id, booking.latest_order_id)}
-                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-yellow-400 hover:text-yellow-300 transition-colors bg-yellow-500/10 hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg border border-yellow-500/20"
-                                        >
-                                            <Clock size={14} />
-                                            Check Status
-                                        </button>
-                                    )}
-                                    {/* Download Receipt Button */}
-                                    {['completed', 'cancelled'].includes(booking.status) && (
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    const res = await parking.downloadReceipt(booking.id);
-                                                    const url = window.URL.createObjectURL(new Blob([res.data]));
-                                                    const link = document.createElement('a');
-                                                    link.href = url;
-                                                    link.setAttribute('download', `Receipt_Booking_${booking.id}.pdf`);
-                                                    document.body.appendChild(link);
-                                                    link.click();
-                                                    link.remove();
-                                                } catch (e) {
-                                                    console.error("Download failed", e);
-                                                    alert("Failed to download receipt.");
-                                                }
-                                            }}
-                                            className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700"
-                                        >
-                                            <span className="text-lg">📄</span>
-                                            Receipt
-                                        </button>
-                                    )}
+                                <div className="space-y-4 mb-6">
+                                    <div className="flex items-center gap-3 text-gray-300">
+                                        <MapPin size={18} className="text-indigo-400" />
+                                        <span className="font-bold text-lg">{booking.spot_info}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-gray-400">
+                                        <Calendar size={18} className="text-gray-500" />
+                                        <span className="text-sm">
+                                            {new Date(booking.start_time).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-gray-400">
+                                        <Clock size={18} className="text-gray-500" />
+                                        <span className="text-sm">
+                                            {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                                            {new Date(booking.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-gray-400">
+                                        <div className="w-5 h-5 rounded bg-gray-800 border border-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-500">
+                                            LP
+                                        </div>
+                                        <span className="text-sm font-mono bg-gray-800/50 px-2 py-0.5 rounded border border-gray-700/50 text-gray-300">
+                                            {booking.vehicle.license_plate}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <span className="font-bold text-xl text-white text-glow whitespace-nowrap">
+                                        RM {((booking.payment_amount || 0) + (booking.excess_fee || 0)).toFixed(2)}
+                                    </span>
+                                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                        {booking.status === 'active' && (
+                                            <button
+                                                onClick={() => {
+                                                    setQrBooking(booking);
+                                                    setShowQRModal(true);
+                                                }}
+                                                className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg border border-indigo-500/20"
+                                            >
+                                                <QrCode size={14} />
+                                                Show QR
+                                            </button>
+                                        )}
+                                        {booking.can_cancel && (
+                                            <button
+                                                onClick={() => handleCancelClick(booking.id)}
+                                                className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-red-400 hover:text-red-300 transition-colors bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg border border-red-500/20"
+                                            >
+                                                <Trash2 size={14} />
+                                                Cancel <span className="hidden sm:inline opacity-50 ml-1 text-[10px]">(Fee Applies)</span>
+                                                <span className="sm:hidden opacity-50 ml-1 text-[10px]">(Fee)</span>
+                                            </button>
+                                        )}
+                                        {booking.payment_status === 'failed' && booking.status !== 'cancelled' && new Date(booking.start_time) > new Date() && (
+                                            <button
+                                                onClick={() => handleRetry(booking.id)}
+                                                className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-white hover:text-white transition-colors bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg shadow-lg shadow-indigo-500/20"
+                                            >
+                                                <Clock size={14} />
+                                                Retry Payment
+                                            </button>
+                                        )}
+                                        {booking.payment_status === 'pending' && booking.status !== 'cancelled' && (
+                                            <button
+                                                onClick={() => handleCheckStatus(booking.id, booking.latest_order_id)}
+                                                className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-yellow-400 hover:text-yellow-300 transition-colors bg-yellow-500/10 hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg border border-yellow-500/20"
+                                            >
+                                                <Clock size={14} />
+                                                Check Status
+                                            </button>
+                                        )}
+                                        {/* Download Receipt Button */}
+                                        {['completed', 'cancelled'].includes(booking.status) && (
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await parking.downloadReceipt(booking.id);
+                                                        const url = window.URL.createObjectURL(new Blob([res.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', `Receipt_Booking_${booking.id}.pdf`);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.remove();
+                                                    } catch (e) {
+                                                        console.error("Download failed", e);
+                                                        alert("Failed to download receipt.");
+                                                    }
+                                                }}
+                                                className="flex-1 sm:flex-none justify-center flex items-center gap-2 text-xs font-medium text-gray-400 hover:text-white transition-colors bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg border border-gray-700"
+                                            >
+                                                <span className="text-lg">📄</span>
+                                                Receipt
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
+                        ))}
+                    </div>
+
+                    <div className="flex justify-between items-center mt-6 px-2">
+                        <div className="text-sm text-gray-400">
+                            Showing <span className="text-white font-medium">{bookingsTotal === 0 ? 0 : (bookingsPage - 1) * 10 + 1}</span> to <span className="text-white font-medium">{Math.min(bookingsPage * 10, bookingsTotal)}</span> of <span className="text-white font-medium">{bookingsTotal}</span>
                         </div>
-                    ))}
-                </div>
+                        <div className="flex gap-2">
+                            <button
+                                disabled={bookingsPage === 1}
+                                onClick={() => setBookingsPage(p => Math.max(1, p - 1))}
+                                className="px-4 py-2 bg-gray-800 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition border border-gray-700"
+                            >
+                                Previous
+                            </button>
+                            <button
+                                disabled={bookingsPage * 10 >= bookingsTotal}
+                                onClick={() => setBookingsPage(p => p + 1)}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 transition shadow-lg shadow-indigo-500/20"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </>
             ) : (
                 <div className="text-center py-20 glass-card rounded-3xl border-dashed border-2 border-gray-700">
                     <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-600 border border-gray-700">
