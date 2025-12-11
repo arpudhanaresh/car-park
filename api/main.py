@@ -315,7 +315,7 @@ def get_layout(
     
     if start_time and end_time:
         try:
-            # Parse ISO strings (likely with Z or offset)
+    # Parse ISO strings (likely with Z or offset)
             # Normalize to naive UTC as stored in DB
             s_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
             e_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
@@ -330,10 +330,19 @@ def get_layout(
         except ValueError:
             pass # Fallback to now if parse fails
             
+    from sqlalchemy import or_, and_
+    
     occupied_spot_ids = db.query(Booking.spot_id).filter(
         Booking.status.in_(['active', 'pending']),
-        Booking.start_time < check_end, # Overlap logic: booking starts before window ends
-        Booking.end_time > check_start  # AND booking ends after window starts
+        or_(
+            # 1. Normal overlap: Booking interval overlaps with Check interval
+            and_(Booking.start_time < check_end, Booking.end_time > check_start),
+            
+            # 2. Overstay: Status is 'active' AND booking should have ended before check_start
+            # This implies the car is still physically there (hasn't checked out), so it blocks the spot.
+            # We treat 'active' overstayers as occupying the spot indefinitely until status changes.
+            and_(Booking.status == 'active', Booking.end_time <= check_start)
+        )
     ).all()
     
     # Flatten list of tuples [(1,), (2,)] -> {1, 2}

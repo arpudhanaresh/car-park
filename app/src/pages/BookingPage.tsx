@@ -28,23 +28,32 @@ const BookingPage: React.FC = () => {
     const [layout, setLayout] = useState<Layout | null>(null);
 
     // Form State
-    // Use local date for default value to avoid timezone issues (e.g. showing yesterday)
+    // Form State
+    // Calculate default start (NOW + 10m) and end (START + 1h)
+    // We must calculate these together to ensure correct date rollover
     const [date, setDate] = useState(() => {
         const d = new Date();
+        d.setMinutes(d.getMinutes() + 10); // Start + 10 mins buffer
         const offset = d.getTimezoneOffset() * 60000;
         return new Date(d.getTime() - offset).toISOString().split('T')[0];
     });
+
     const [startTime, setStartTime] = useState(() => {
         const d = new Date();
-        d.setMinutes(d.getMinutes() + 30); // Default to next 30 min slot approx
+        d.setMinutes(d.getMinutes() + 10); // Start + 10 mins buffer
         return d.toTimeString().slice(0, 5);
     });
 
-    // Default end time = start + 1 hour
-    const [endDate, setEndDate] = useState(date);
+    const [endDate, setEndDate] = useState(() => {
+        const d = new Date();
+        d.setMinutes(d.getMinutes() + 10 + 60); // Start + 1 hour
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+    });
+
     const [endTime, setEndTime] = useState(() => {
         const d = new Date();
-        d.setMinutes(d.getMinutes() + 30 + 60); // Start (30 min from now) + 1 hour
+        d.setMinutes(d.getMinutes() + 10 + 60); // Start + 1 hour
         return d.toTimeString().slice(0, 5);
     });
 
