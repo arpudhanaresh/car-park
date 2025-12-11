@@ -11,8 +11,10 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
-from passlib.context import CryptContext
 from jose import JWTError, jwt
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import io
 import math
 import os
 import random
@@ -21,6 +23,13 @@ from fastapi.responses import StreamingResponse
 from utils.pdf import generate_booking_receipt
 from dotenv import load_dotenv
 from utils.email import send_email
+
+try:
+    # from ddtrace import patch_all
+    # patch_all()
+    pass
+except ImportError:
+    pass
 
 # ... models imports ... 
 from models import (

@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Github } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Github, Eye } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Booking {
     id: number;
     spot_info: string;
     name: string;
-    vehicle: { license_plate: string };
+    vehicle: {
+        license_plate: string;
+        make?: string;
+        model?: string;
+        color?: string;
+    };
     start_time: string;
     end_time: string;
     status: string;
     payment_amount: number;
     email: string;
+    phone?: string;
     excess_fee: number;
     cancellation_reason?: string;
     refund_amount?: number;
@@ -127,6 +133,11 @@ const AdminDashboard: React.FC = () => {
         data: any | null;
         loading: boolean;
     }>({ isOpen: false, bookingId: null, data: null, loading: false });
+
+
+    // View Details Logic
+    const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
+
 
     const initiateExit = async (bookingId: number) => {
         setExitModal({ isOpen: true, bookingId, data: null, loading: true });
@@ -498,44 +509,172 @@ const AdminDashboard: React.FC = () => {
                                                                 {booking.status}
                                                             </span>
                                                         </td>
-                                                        <td className="py-4 px-6">${booking.payment_amount}</td>
+                                                        <td className="py-4 px-6" title={`Initial: $${booking.payment_amount}\nExcess: $${booking.excess_fee || 0}`}>
+                                                            ${(booking.payment_amount + (booking.excess_fee || 0)).toFixed(2)}
+                                                        </td>
                                                         <td className="py-4 px-6">
-                                                            {booking.status === 'active' && (
+                                                            <div className="flex items-center gap-2">
+                                                                {/* View Details Button */}
                                                                 <button
-                                                                    onClick={() => initiateExit(booking.id)}
-                                                                    className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
+                                                                    onClick={() => setViewingBooking(booking)}
+                                                                    className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                                                                    title="View Details"
                                                                 >
-                                                                    Exit / Checkout
+                                                                    <Eye size={16} />
                                                                 </button>
-                                                            )}
-                                                            {booking.status === 'cancelled' && booking.refund_status === 'pending' && (
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        try {
-                                                                            await admin.processRefund(booking.id);
-                                                                            showDialog("Success", "Refund marked as processed!", "alert");
-                                                                            fetchData();
-                                                                        } catch (err: any) {
-                                                                            showDialog("Error", err.response?.data?.detail || "Failed to process refund", "error");
-                                                                        }
-                                                                    }}
-                                                                    className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
-                                                                >
-                                                                    Process Refund
-                                                                </button>
-                                                            )}
-                                                            {booking.status === 'cancelled' && booking.refund_status === 'refunded' && (
-                                                                <span className="text-xs text-green-400 font-medium flex items-center gap-1">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                                                    Refunded
-                                                                </span>
-                                                            )}
+
+                                                                {booking.status === 'active' && (
+                                                                    <button
+                                                                        onClick={() => initiateExit(booking.id)}
+                                                                        className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-medium shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95"
+                                                                    >
+                                                                        Exit
+                                                                    </button>
+                                                                )}
+                                                                {booking.status === 'cancelled' && booking.refund_status === 'pending' && (
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                await admin.processRefund(booking.id);
+                                                                                showDialog("Success", "Refund marked as processed!", "alert");
+                                                                                fetchData();
+                                                                            } catch (err: any) {
+                                                                                showDialog("Error", err.response?.data?.detail || "Failed to process refund", "error");
+                                                                            }
+                                                                        }}
+                                                                        className="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-lg font-bold shadow-lg shadow-amber-500/10 transition-all hover:scale-105"
+                                                                    >
+                                                                        Refund
+                                                                    </button>
+                                                                )}
+                                                                {booking.status === 'cancelled' && booking.refund_status === 'refunded' && (
+                                                                    <span className="text-xs text-green-400 font-medium flex items-center gap-1">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                                                        Refunded
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {/* View Booking Modal */}
+                                    {viewingBooking && (
+                                        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                            <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 relative max-h-[90vh] overflow-y-auto">
+                                                <button onClick={() => setViewingBooking(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+                                                    <X size={20} />
+                                                </button>
+
+                                                <h3 className="text-xl font-bold text-white mb-1">Booking Details</h3>
+                                                <p className="text-sm text-gray-400 mb-6 font-mono text-indigo-400">#{viewingBooking.id}</p>
+
+                                                <div className="space-y-6">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Customer</h4>
+                                                            <div className="space-y-2">
+                                                                <div>
+                                                                    <p className="text-xs text-gray-400">Name</p>
+                                                                    <p className="font-medium text-white">{viewingBooking.name}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-400">Email</p>
+                                                                    <p className="font-medium text-white break-all">{viewingBooking.email}</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-400">Phone</p>
+                                                                    <p className="font-medium text-white">{viewingBooking.phone || 'N/A'}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Vehicle</h4>
+                                                            <div className="space-y-2">
+                                                                <div>
+                                                                    <p className="text-xs text-gray-400">License Plate</p>
+                                                                    <p className="font-mono font-bold text-yellow-400 bg-yellow-400/10 px-2 py-0.5 rounded inline-block">
+                                                                        {viewingBooking.vehicle.license_plate}
+                                                                    </p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs text-gray-400">Details</p>
+                                                                    <p className="font-medium text-white">
+                                                                        {[viewingBooking.vehicle.color, viewingBooking.vehicle.make, viewingBooking.vehicle.model].filter(Boolean).join(' ') || 'Standard Vehicle'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-white/5 p-4 rounded-xl border border-white/5">
+                                                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Session</h4>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <p className="text-xs text-gray-400">Start Time</p>
+                                                                <p className="font-medium text-white text-sm">{new Date(viewingBooking.start_time).toLocaleString()}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-400">End Time</p>
+                                                                <p className="font-medium text-white text-sm">{new Date(viewingBooking.end_time).toLocaleString()}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-400">Spot</p>
+                                                                <p className="font-bold text-white">{viewingBooking.spot_info}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-gray-400">Status</p>
+                                                                <div className="mt-1">
+                                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider
+                                                                        ${viewingBooking.status === 'active' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                                                            viewingBooking.status === 'cancelled' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                                                                viewingBooking.status === 'completed' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                                                                    'bg-gray-700 text-gray-400 border border-gray-600'}`}>
+                                                                        {viewingBooking.status}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-indigo-500/10 p-4 rounded-xl border border-indigo-500/20">
+                                                        <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">Financial Overview</h4>
+                                                        <div className="space-y-2">
+                                                            <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
+                                                                <span className="text-gray-400 text-sm">Initial Payment</span>
+                                                                <span className="font-mono text-white">${viewingBooking.payment_amount.toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
+                                                                <span className="text-gray-400 text-sm">Overstay / Excess Fee</span>
+                                                                <span className="font-mono text-orange-400">+${(viewingBooking.excess_fee || 0).toFixed(2)}</span>
+                                                            </div>
+                                                            <div className="flex justify-between items-center pt-2 border-t border-white/10 mt-2">
+                                                                <span className="text-white font-bold">Total Processed</span>
+                                                                <span className="font-mono text-xl font-bold text-green-400">
+                                                                    ${(viewingBooking.payment_amount + (viewingBooking.excess_fee || 0)).toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                            {viewingBooking.status === 'cancelled' && (
+                                                                <div className="mt-3 pt-3 border-t border-dashed border-white/10 text-xs">
+                                                                    <div className="flex justify-between text-red-300">
+                                                                        <span>Refund Amount:</span>
+                                                                        <span>${(viewingBooking.refund_amount || 0).toFixed(2)}</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-gray-500 mt-1">
+                                                                        <span>Status:</span>
+                                                                        <span className="uppercase">{viewingBooking.refund_status}</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="flex justify-between items-center mt-4 px-2">
                                         <div className="text-sm text-gray-400">

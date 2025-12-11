@@ -1,5 +1,5 @@
-import os
 from sqlalchemy import create_engine
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,13 +10,16 @@ DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 
-url = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-print(f"Connecting to: {url.replace(DB_PASSWORD, '***')}")
+SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+print(f"Connecting to {DB_HOST}...")
 
 try:
-    engine = create_engine(url)
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
     connection = engine.connect()
-    print("Connection successful!")
+    print("Database Connection SUCCESS!")
     connection.close()
 except Exception as e:
-    print(f"ERR: {repr(e)}")
+    print(f"Database Connection FAILED: {e}")
+    import traceback
+    traceback.print_exc()
