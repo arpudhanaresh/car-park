@@ -6,6 +6,8 @@ from models import Booking, BookingStatus
 from services.ringgitpay import ringgitpay_service
 from datetime import datetime
 import os
+from utils.email import send_email
+from utils.common import format_spot_id
 
 router = APIRouter(prefix="/payment", tags=["payment"])
 
@@ -85,6 +87,31 @@ def update_booking_status_logic(db: Session, booking: Booking, status_code: str,
         booking.payment_status = 'paid'
         # Ensure status is active only on success (as requested)
         booking.status = 'active'
+        
+        # Send Confirmation Email (Moved from main.py)
+        try:
+            if booking.email:
+                 # Need to format times clearly
+                 start_str = booking.start_time.strftime("%Y-%m-%d %H:%M:%S")
+                 end_str = booking.end_time.strftime("%Y-%m-%d %H:%M:%S")
+                 
+                 spot_label = format_spot_id(booking.spot.row, booking.spot.col) if booking.spot else "N/A"
+                 vehicle_plate = booking.vehicle.license_plate if booking.vehicle else "N/A"
+                 
+                 send_email(
+                    booking.email,
+                    "Booking Confirmed - ParkPro",
+                    f"Hello {booking.name},\n\nYour booking is confirmed.\n"
+                    f"Spot: {spot_label}\n"
+                    f"Vehicle: {vehicle_plate}\n"
+                    f"Start: {start_str}\n"
+                    f"End: {end_str}\n"
+                    f"Amount: ${float(booking.payment_amount):.2f}\n\n"
+                    f"Thank you!"
+                 )
+        except Exception as e:
+            print(f"Failed to send confirmation email from payment callback: {e}")
+
     elif status_code == 'RP09':
         if booking.payment_status != 'paid':
             booking.payment_status = 'pending'

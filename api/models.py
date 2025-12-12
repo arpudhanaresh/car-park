@@ -284,6 +284,7 @@ class BookingResponse(BaseModel):
     refund_status: str
     refund_amount: float
     excess_fee: float = 0.0
+    estimated_excess_fee: Optional[float] = 0.0
     created_at: datetime
     can_cancel: bool
     latest_order_id: Optional[str] = None

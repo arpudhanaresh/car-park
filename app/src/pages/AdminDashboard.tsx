@@ -20,6 +20,7 @@ interface Booking {
     email: string;
     phone?: string;
     excess_fee: number;
+    estimated_excess_fee?: number;
     cancellation_reason?: string;
     refund_amount?: number;
     refund_status?: string;
@@ -509,8 +510,17 @@ const AdminDashboard: React.FC = () => {
                                                                 {booking.status}
                                                             </span>
                                                         </td>
-                                                        <td className="py-4 px-6" title={`Initial: $${booking.payment_amount}\nExcess: $${booking.excess_fee || 0}`}>
-                                                            ${(booking.payment_amount + (booking.excess_fee || 0)).toFixed(2)}
+                                                        <td className="py-4 px-6" title={`Initial: $${booking.payment_amount}\nExcess (Paid): $${booking.excess_fee || 0}\nEstimated Excess: $${booking.estimated_excess_fee || 0}`}>
+                                                            <div className="flex flex-col">
+                                                                <span className={booking.status === 'active' && (booking.estimated_excess_fee || 0) > 0 ? "text-orange-400 font-bold" : ""}>
+                                                                    ${(booking.payment_amount + (booking.excess_fee || 0) + (booking.status === 'active' ? (booking.estimated_excess_fee || 0) : 0)).toFixed(2)}
+                                                                </span>
+                                                                {booking.status === 'active' && (booking.estimated_excess_fee || 0) > 0 && (
+                                                                    <span className="text-[10px] text-orange-400/70 font-normal">
+                                                                        (+${(booking.estimated_excess_fee || 0).toFixed(2)} est)
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                         <td className="py-4 px-6">
                                                             <div className="flex items-center gap-2">
@@ -649,12 +659,19 @@ const AdminDashboard: React.FC = () => {
                                                             </div>
                                                             <div className="flex justify-between items-center bg-black/20 p-2 rounded-lg">
                                                                 <span className="text-gray-400 text-sm">Overstay / Excess Fee</span>
-                                                                <span className="font-mono text-orange-400">+${(viewingBooking.excess_fee || 0).toFixed(2)}</span>
+                                                                <div className="text-right">
+                                                                    <span className="font-mono text-orange-400 block">+${(viewingBooking.excess_fee || 0).toFixed(2)}</span>
+                                                                    {viewingBooking.status === 'active' && (viewingBooking.estimated_excess_fee || 0) > 0 && (
+                                                                        <span className="text-[10px] text-orange-400/70 font-mono block">
+                                                                            (+${(viewingBooking.estimated_excess_fee || 0).toFixed(2)} est)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                             <div className="flex justify-between items-center pt-2 border-t border-white/10 mt-2">
-                                                                <span className="text-white font-bold">Total Processed</span>
+                                                                <span className="text-white font-bold">Total {viewingBooking.status === 'active' ? 'Estim. Due' : 'Paid'}</span>
                                                                 <span className="font-mono text-xl font-bold text-green-400">
-                                                                    ${(viewingBooking.payment_amount + (viewingBooking.excess_fee || 0)).toFixed(2)}
+                                                                    ${(viewingBooking.payment_amount + (viewingBooking.excess_fee || 0) + (viewingBooking.status === 'active' ? (viewingBooking.estimated_excess_fee || 0) : 0)).toFixed(2)}
                                                                 </span>
                                                             </div>
                                                             {viewingBooking.status === 'cancelled' && (

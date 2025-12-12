@@ -23,6 +23,7 @@ from fastapi.responses import StreamingResponse
 from utils.pdf import generate_booking_receipt
 from dotenv import load_dotenv
 from utils.email import send_email
+from utils.common import format_spot_id
 
 try:
     # from ddtrace import patch_all
@@ -196,12 +197,7 @@ def get_password_hash(password):
         password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
 
-def format_spot_id(row: int, col: int) -> str:
-    # A=0, B=1, ... and 1=0, 2=1 ...
-    # So Row 0, Col 0 -> A1. Row 1, Col 5 -> B6
-    row_char = chr(65 + row)
-    col_num = col + 1
-    return f"{row_char}{col_num}"
+
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -979,25 +975,11 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
         None, "pending", f"Booking created for {vehicle.license_plate}. Amount: {final_amount}"
     )
     
+    # Email sending moved to payment success callback
+    # See api/routers/payment.py
+    
     db.commit()
     db.refresh(booking)
-    
-    # Send Confirmation Email
-    try:
-        if booking.email:
-             send_email(
-                booking.email,
-                "Booking Confirmed - ParkPro",
-                f"Hello {booking.name},\n\nYour booking is confirmed.\n"
-                f"Spot: {format_spot_id(spot.row, spot.col)}\n"
-                f"Vehicle: {vehicle.license_plate}\n"
-                f"Start: {booking.start_time}\n"
-                f"End: {booking.end_time}\n"
-                f"Amount: ${final_amount}\n\n"
-                f"Thank you!"
-             )
-    except Exception as e:
-        print(f"Failed to send confirmation email: {e}")
     
 
     
@@ -1182,7 +1164,13 @@ def get_all_bookings(
         .limit(limit)\
         .all()
     
+    # Fetch hourly rate once
+    hourly_rate_config = db.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
+    base_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
+
     result = []
+    current_time_utc = datetime.utcnow()
+
     for booking in bookings:
         can_cancel = (
             (booking.status == "active" or booking.status == "pending") and 
@@ -1194,6 +1182,22 @@ def get_all_bookings(
         response_end = booking.end_time.replace(tzinfo=timezone.utc)
         response_created = booking.created_at.replace(tzinfo=timezone.utc) if booking.created_at else None
         
+        # Calculate Estimated Excess Fee for Active Bookings
+        estimated_excess_fee = 0.0
+        if booking.status == "active":
+            booking_end_utc = booking.end_time if not booking.end_time.tzinfo else booking.end_time.replace(tzinfo=None)
+            if current_time_utc > booking_end_utc:
+                diff_seconds = (current_time_utc - booking_end_utc).total_seconds()
+                overstay_hours = math.ceil(diff_seconds / 3600.0)
+                
+                multiplier = 1.0
+                if booking.spot and booking.spot.spot_type == 'ev':
+                    multiplier = 1.5
+                elif booking.spot and booking.spot.spot_type == 'vip':
+                    multiplier = 2.0
+                
+                estimated_excess_fee = overstay_hours * base_rate * multiplier
+
         result.append(BookingResponse(
             id=booking.id,
             booking_uuid=booking.booking_uuid,
@@ -1213,6 +1217,7 @@ def get_all_bookings(
             refund_status=booking.refund_status,
             refund_amount=float(booking.refund_amount),
             excess_fee=float(booking.excess_fee) if booking.excess_fee else 0.0,
+            estimated_excess_fee=estimated_excess_fee,
             created_at=response_created,
             can_cancel=can_cancel,
             latest_order_id=booking.latest_order_id
