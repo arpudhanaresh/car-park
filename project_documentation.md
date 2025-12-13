@@ -157,7 +157,35 @@ ParkPro is a modern, full-stack parking management solution designed to streamli
 - `POST /admin/bookings/{id}/process-manual-refund`: Issue refund.
 - `POST /admin/config`: Update system settings (hourly rate).
 
-## 6. Developer Tools (Maintenance)
+## 6. Payment Architecture (RinggitPay)
+
+### **Overview**
+
+ParkPro integrates with **RinggitPay**, a secure regional payment gateway, to handle checkout transactions. The integration is designed to be robust, secure, and user-friendly.
+
+### **Integration Workflow**
+
+1.  **Initiation**:
+    - User clicks "Checkout" in the portal.
+    - System calculates the final amount including overstay fees.
+    - A unique `order_id` is generated (Format: `RP-{booking_id}-{timestamp}`).
+2.  **Security Handshake**:
+    - The backend generates a **SHA256 Signature** using the `MerchantSecret`, `order_id`, and `amount`.
+    - This signature ensures the request payload cannot be tampered with.
+3.  **Redirection**:
+    - The user is redirected to the securely hosted RinggitPay payment page.
+    - Supported methods: Credit/Debit Cards, FPX (Online Banking), and E-Wallets.
+4.  **Completion & Callback**:
+    - Upon success/failure, RinggitPay redirects the user back to ParkPro.
+    - Simultaneously, a server-to-server **webhook/callback** confirms the transaction status independently of the user's browser, preventing fraud.
+
+### **Features**
+
+- **Environment Handling**: Seamless switching between **UAT (Sandbox)** for testing and **Production** for live payments.
+- **Audit Trail**: Every payment attempt is logged in the `BookingAuditLog` with transaction IDs and raw response data.
+- **Fail-Safe**: If a user closes the browser during payment, the system can query the status later to reconcile the booking.
+
+## 7. Developer Tools (Maintenance)
 
 - `api/create_admin.py`: Initialize admin user.
 - `api/clear_bookings.py`: Reset system state (wipe bookings).
