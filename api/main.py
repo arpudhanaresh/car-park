@@ -143,14 +143,53 @@ async def lifespan(app: FastAPI):
                     end_time_utc = booking.end_time if not booking.end_time.tzinfo else booking.end_time.replace(tzinfo=None)
                     time_left = (end_time_utc - now).total_seconds() / 60.0 # minutes
 
+                    plate = booking.vehicle.license_plate if booking.vehicle else "Unknown"
+                    spot_str = format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor) if booking.spot else "N/A"
+                    end_str = end_time_utc.strftime("%Y-%m-%d %H:%M:%S")
+
                     # A. Pre-Alert (10-20 mins before)
                     if 10 <= time_left <= 20 and not booking.is_pre_alert_sent:
-                        send_email(booking.user.email, "Parking Expiring Soon", f"Your parking expires in 15 minutes.")
+                        html_body = f"""
+                            <h1>Parking Expiring Soon</h1>
+                            <p>Hello {booking.user.username},</p>
+                            <p>This is a friendly reminder that your parking session is about to expire.</p>
+                            
+                            <table class="details-table">
+                                <tr><th>Vehicle</th><td>{plate}</td></tr>
+                                <tr><th>Spot</th><td>{spot_str}</td></tr>
+                                <tr><th>Expires At</th><td>{end_str}</td></tr>
+                            </table>
+                            
+                            <div class="highlight-box">
+                                <strong>15 Minutes Remaining</strong>
+                            </div>
+                            
+                            <p>Please extend your session or return to your vehicle.</p>
+                            <center><a href="http://localhost:5173/my-bookings" class="btn">View Booking</a></center>
+                        """
+                        send_email(booking.user.email, "Parking Expiring Soon - ParkPro", html_body, is_html=True)
                         booking.is_pre_alert_sent = True
 
                     # B. Expiry Alert (<= 0 mins)
                     if time_left <= 0 and not booking.is_expiry_alert_sent:
-                        send_email(booking.user.email, "Parking Expired", f"Your parking time has expired.")
+                        html_body = f"""
+                            <h1>Parking Expired</h1>
+                            <p>Hello {booking.user.username},</p>
+                            <div class="alert-box">
+                                <span class="alert-title">SESSION EXPIRED</span>
+                                Your parking time has finished. You are now accruing excess fees.
+                            </div>
+                            
+                            <table class="details-table">
+                                <tr><th>Vehicle</th><td>{plate}</td></tr>
+                                <tr><th>Spot</th><td>{spot_str}</td></tr>
+                                <tr><th>Expired At</th><td>{end_str}</td></tr>
+                            </table>
+                            
+                            <p>Please checkout immediately via the portal or app to finalize your payment.</p>
+                            <center><a href="http://localhost:5173/my-bookings" class="btn" style="background-color: #ef4444;">Checkout Now</a></center>
+                        """
+                        send_email(booking.user.email, "Parking Expired - ParkPro", html_body, is_html=True)
                         booking.is_expiry_alert_sent = True
                         booking.last_overstay_sent_at = now
 
@@ -181,15 +220,24 @@ async def lifespan(app: FastAPI):
                                 plate = booking.vehicle.license_plate if booking.vehicle else "Unknown"
                                 spot_str = format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor) if booking.spot else "N/A"
                                 
-                                send_email(
-                                    booking.user.email, 
-                                    f"Rate Alert: Vehicle {plate} Overstay Notice", 
-                                    f"Hello {booking.user.username},\n\n"
-                                    f"Your vehicle ({plate}) in spot {spot_str} has exceeded the booked time by {int(overstay_hours_calc)} hours.\n"
-                                    f"Current Estimated Excess Fee: MYR {current_excess:.2f}\n\n"
-                                    f"Please checkout immediately to avoid further charges.\n"
-                                    f"Thank you."
-                                )
+                                html_body = f"""
+                                    <h1>Overstay Fee Notice</h1>
+                                    <p>Hello {booking.user.username},</p>
+                                    <div class="alert-box">
+                                        <span class="alert-title">ACTION REQUIRED</span>
+                                        Your vehicle has exceeded the booked time by <strong>{int(overstay_hours_calc)} hours</strong>.
+                                    </div>
+                                    
+                                    <table class="details-table">
+                                        <tr><th>Vehicle</th><td>{plate}</td></tr>
+                                        <tr><th>Spot</th><td>{spot_str}</td></tr>
+                                        <tr><th>Estimated Fee</th><td><strong>MYR {current_excess:.2f}</strong></td></tr>
+                                    </table>
+                                    
+                                    <p>Please checkout immediately to avoid further charges.</p>
+                                    <center><a href="http://localhost:5173/my-bookings" class="btn" style="background-color: #ef4444;">Pay & Exit</a></center>
+                                """
+                                send_email(booking.user.email, f"Rate Alert: Overstay Notice", html_body, is_html=True)
                                 booking.last_overstay_sent_at = now
 
                 db_session.commit()
@@ -1386,14 +1434,27 @@ def cancel_booking(
     # Send Cancellation Email
     try:
         if booking.email:
-             send_email(
-                booking.email,
-                "Booking Cancelled - ParkPro",
-                f"Hello,\n\nYour booking #{booking.id} has been cancelled.\n"
-                f" Refund Amount: MYR {refund_amount}\n"
-                f"Reason: {refund_reason}\n\n"
-                f"Thank you."
-             )
+
+                html_body = f"""
+                    <h1>Booking Cancelled</h1>
+                    <p>Hello,</p>
+                    <p>Your booking <strong>#{booking.id}</strong> has been cancelled.</p>
+                    
+                    <table class="details-table">
+                        <tr><th>Booking ID</th><td>#{booking.id}</td></tr>
+                        <tr><th>Refund Amount</th><td>MYR {refund_amount}</td></tr>
+                        <tr><th>Refund Reason</th><td>{refund_reason}</td></tr>
+                        <tr><th>Reason</th><td>{refund_reason}</td></tr>
+                    </table>
+                    
+                    <p>We hope to see you again soon.</p>
+                """
+                send_email(
+                    booking.email,
+                    "Booking Cancelled - ParkPro",
+                    html_body,
+                    is_html=True
+                 )
     except Exception as e:
         print(f"Failed to send cancellation email: {e}")
         
@@ -1419,10 +1480,23 @@ def cancel_booking(
     # Send Email to User
     try:
         current_year = datetime.utcnow().year
+        html_body_user = f"""
+            <h1>Booking Cancelled</h1>
+            <p>Hello {booking.user.username},</p>
+            <p>Your booking <strong>#{booking.id}</strong> has been successfully cancelled.</p>
+            
+            <table class="details-table">
+                <tr><th>Refund Status</th><td>{refund_reason}</td></tr>
+                <tr><th>Refund Amount</th><td><strong>MYR {refund_amount:.2f}</strong></td></tr>
+            </table>
+            
+            <p>We hope to see you again soon.</p>
+        """
         send_email(
             booking.user.email,
             "Booking Cancelled - ParkPro",
-            f"Hello {booking.user.username},\n\nYour booking #{booking.id} has been cancelled.\n\nRefund Status: {refund_reason}\nRefund Amount: MYR {refund_amount:.2f}\n\nWe hope to see you again soon."
+            html_body_user,
+            is_html=True
         )
         
         # Send Email to Admin(s)
@@ -1703,13 +1777,28 @@ def notify_overstay(booking_id: int, current_user: User = Depends(get_current_us
     excess_fee = overstay_hours * base_rate * multiplier
     
     if booking.user and booking.user.email:
+        html_body = f"""
+            <h1>Overstay Notification</h1>
+            <p>Dear {booking.user.username},</p>
+            
+            <div class="alert-box">
+                <span class="alert-title">OVERSTAY FEE INCURRED</span>
+                Your parking session has expired by <strong>{int(overstay_hours)} hours</strong>.
+            </div>
+            
+            <div class="highlight-box">
+                <span style="font-size: 14px; color: #4f46e5; text-transform: uppercase;">Accumulated Fee</span><br>
+                <span style="font-size: 24px; color: #111827; font-weight: 900;">MYR {excess_fee:.2f}</span>
+            </div>
+            
+            <p>Please return to your vehicle and checkout immediately.</p>
+            <center><a href="http://localhost:5173/my-bookings" class="btn" style="background-color: #ef4444;">Pay Now</a></center>
+        """
         send_email(
             booking.user.email,
             "Urgent: Parking Overstay Fee Notification",
-            f"Dear {booking.user.username},\n\nYour parking session has expired by {int(overstay_hours)} hours.\n"
-            f"Current excess fees accumulated: MYR {excess_fee:.2f}.\n\n"
-            f"Please return to your vehicle and checkout immediately to avoid further charges.\n\n"
-            f"Thank you,\nMy Car Park Team"
+            html_body,
+            is_html=True
         )
         return {"message": "Notification email sent successfully", "excess_fee": excess_fee}
     else:
@@ -1737,10 +1826,23 @@ def forgot_password(req: PasswordResetRequest, db: Session = Depends(get_db)):
     
     # Send Email
     try:
+        html_body = f"""
+            <h1>Password Reset</h1>
+            <p>Hello {user.username},</p>
+            <p>You requested a password reset. Use the OTP below to verify your identity.</p>
+            
+            <div class="highlight-box" style="text-align: center;">
+                <span style="font-size: 32px; letter-spacing: 5px; font-weight: 700; color: #4f46e5;">{otp}</span>
+            </div>
+            
+            <p style="font-size: 14px;">This OTP is valid for <strong>15 minutes</strong>.</p>
+            <p style="font-size: 14px; color: #6b7280;">If you did not request this, please ignore this email.</p>
+        """
         send_email(
             req.email,
             "Password Reset OTP - ParkPro",
-            f"Hello {user.username},\n\nYour OTP for password reset is: {otp}\n\nThis OTP is valid for 15 minutes.\n\nIf you did not request this, please ignore."
+            html_body,
+            is_html=True
         )
     except Exception as e:
         print(f"Failed to send OTP: {e}")
@@ -1820,15 +1922,24 @@ def process_manual_refund(
     
     # Send Email to User
     try:
-        from datetime import datetime
+        html_body = f"""
+            <h1>Refund Processed</h1>
+            <p>Hello {booking.user.username},</p>
+            <p>Your refund for booking <strong>#{booking.id}</strong> has been processed manually by our admin team.</p>
+            
+            <table class="details-table">
+                <tr><th>Refund Amount</th><td><strong>MYR {booking.refund_amount:.2f}</strong></td></tr>
+                <tr><th>Status</th><td>Processed</td></tr>
+            </table>
+            
+            <p>It should appear in your account shortly.</p>
+        """
         send_email(
             booking.user.email,
             "Refund Processed - ParkPro",
-            f"Hello {booking.user.username},\n\n"
-            f"Your refund of MYR {booking.refund_amount:.2f} for booking #{booking.id} has been processed.\n"
-            f"It should appear in your account shortly.\n\n"
-            f"Thank you."
-        )
+            html_body,
+            is_html=True
+         )
     except Exception as e:
         print(f"Failed to send refund email: {e}")
         

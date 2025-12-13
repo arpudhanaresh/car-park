@@ -98,16 +98,52 @@ def update_booking_status_logic(db: Session, booking: Booking, status_code: str,
                  spot_label = format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor) if booking.spot else "N/A"
                  vehicle_plate = booking.vehicle.license_plate if booking.vehicle else "N/A"
                  
+                 # Create HTML Body
+                 html_body = f"""
+                    <h1>Booking Confirmed!</h1>
+                    <p>Hello {booking.name},</p>
+                    <p>Your parking spot has been successfully booked. Below are your booking details:</p>
+                    
+                    <table class="details-table">
+                        <tr>
+                            <th>Booking ID</th>
+                            <td>#{booking.id}</td>
+                        </tr>
+                        <tr>
+                            <th>Spot</th>
+                            <td><strong>{spot_label}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Vehicle</th>
+                            <td>{vehicle_plate}</td>
+                        </tr>
+                        <tr>
+                            <th>Start Time</th>
+                            <td>{start_str}</td>
+                        </tr>
+                        <tr>
+                            <th>End Time</th>
+                            <td>{end_str}</td>
+                        </tr>
+                    </table>
+                    
+                    <div class="highlight-box">
+                        <span style="font-size: 14px; color: #4f46e5; font-weight: 700; text-transform: uppercase;">Total Paid</span><br>
+                        <span style="font-size: 24px; color: #111827; font-weight: 900;">MYR {float(booking.payment_amount):.2f}</span>
+                    </div>
+                    
+                    <p>Thank you for using ParkPro!</p>
+                    
+                    <center>
+                        <a href="http://localhost:5173/my-bookings" class="btn">View My Bookings</a>
+                    </center>
+                 """
+                 
                  send_email(
                     booking.email,
                     "Booking Confirmed - ParkPro",
-                    f"Hello {booking.name},\n\nYour booking is confirmed.\n"
-                    f"Spot: {spot_label}\n"
-                    f"Vehicle: {vehicle_plate}\n"
-                    f"Start: {start_str}\n"
-                    f"End: {end_str}\n"
-                    f"Amount: MYR {float(booking.payment_amount):.2f}\n\n"
-                    f"Thank you!"
+                    html_body,
+                    is_html=True
                  )
         except Exception as e:
             print(f"Failed to send confirmation email from payment callback: {e}")
