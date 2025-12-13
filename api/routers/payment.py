@@ -135,7 +135,7 @@ def update_booking_status_logic(db: Session, booking: Booking, status_code: str,
                     <p>Thank you for using ParkPro!</p>
                     
                     <center>
-                        <a href="http://localhost:5173/my-bookings" class="btn">View My Bookings</a>
+                        <a href="{FRONTEND_URL}/my-bookings" class="btn">View My Bookings</a>
                     </center>
                  """
                  

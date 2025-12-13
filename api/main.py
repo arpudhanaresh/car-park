@@ -89,6 +89,7 @@ DB_NAME = os.getenv("DB_NAME")
 SECRET_KEY = os.getenv("SECRET_KEY", "secret")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 from database import engine, SessionLocal, get_db
 
@@ -165,7 +166,7 @@ async def lifespan(app: FastAPI):
                             </div>
                             
                             <p>Please extend your session or return to your vehicle.</p>
-                            <center><a href="http://localhost:5173/my-bookings" class="btn">View Booking</a></center>
+                            <center><a href="{FRONTEND_URL}/my-bookings" class="btn">View Booking</a></center>
                         """
                         send_email(booking.user.email, "Parking Expiring Soon - ParkPro", html_body, is_html=True)
                         booking.is_pre_alert_sent = True
@@ -187,7 +188,7 @@ async def lifespan(app: FastAPI):
                             </table>
                             
                             <p>Please checkout immediately via the portal or app to finalize your payment.</p>
-                            <center><a href="http://localhost:5173/my-bookings" class="btn" style="background-color: #ef4444;">Checkout Now</a></center>
+                            <center><a href="{FRONTEND_URL}/my-bookings" class="btn" style="background-color: #ef4444;">Checkout Now</a></center>
                         """
                         send_email(booking.user.email, "Parking Expired - ParkPro", html_body, is_html=True)
                         booking.is_expiry_alert_sent = True
@@ -235,7 +236,7 @@ async def lifespan(app: FastAPI):
                                     </table>
                                     
                                     <p>Please checkout immediately to avoid further charges.</p>
-                                    <center><a href="http://localhost:5173/my-bookings" class="btn" style="background-color: #ef4444;">Pay & Exit</a></center>
+                                    <center><a href="{FRONTEND_URL}/my-bookings" class="btn" style="background-color: #ef4444;">Pay & Exit</a></center>
                                 """
                                 send_email(booking.user.email, f"Rate Alert: Overstay Notice", html_body, is_html=True)
                                 booking.last_overstay_sent_at = now
@@ -1794,7 +1795,7 @@ def notify_overstay(booking_id: int, current_user: User = Depends(get_current_us
             </div>
             
             <p>Please return to your vehicle and checkout immediately.</p>
-            <center><a href="http://localhost:5173/my-bookings" class="btn" style="background-color: #ef4444;">Pay Now</a></center>
+            <center><a href="{FRONTEND_URL}/my-bookings" class="btn" style="background-color: #ef4444;">Pay Now</a></center>
         """
         send_email(
             booking.user.email,
