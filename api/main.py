@@ -250,7 +250,11 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown (if needed)
 
-# Create FastAPI app with lifespan
+# Startup Marker
+print("----------------------------------------------------------------")
+print("   STARTING NEW CODE... IF YOU SEE THIS IT IS THE NEW VERSION   ")
+print("----------------------------------------------------------------")
+
 app = FastAPI(lifespan=lifespan)
 
 # CORS
@@ -1626,9 +1630,7 @@ def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_current_use
     db.commit()
     return {"message": message}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 # Admin Exit Logic
 import math
@@ -1964,3 +1966,14 @@ def debug_booking_51(db: Session = Depends(get_db)):
              "status": b.status
          }
     return {"error": "not found"}
+
+if __name__ == "__main__":
+    import uvicorn
+    try:
+        # Run app directly to avoid import ambiguity
+        print("Starting Uvicorn...")
+        uvicorn.run(app, host="127.0.0.1", port=8000)
+    except Exception as e:
+        print(f"FAILED TO START: {e}")
+        import traceback
+        traceback.print_exc()
