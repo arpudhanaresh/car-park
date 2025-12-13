@@ -95,7 +95,7 @@ def update_booking_status_logic(db: Session, booking: Booking, status_code: str,
                  start_str = booking.start_time.strftime("%Y-%m-%d %H:%M:%S")
                  end_str = booking.end_time.strftime("%Y-%m-%d %H:%M:%S")
                  
-                 spot_label = format_spot_id(booking.spot.row, booking.spot.col) if booking.spot else "N/A"
+                 spot_label = format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor) if booking.spot else "N/A"
                  vehicle_plate = booking.vehicle.license_plate if booking.vehicle else "N/A"
                  
                  send_email(
@@ -106,7 +106,7 @@ def update_booking_status_logic(db: Session, booking: Booking, status_code: str,
                     f"Vehicle: {vehicle_plate}\n"
                     f"Start: {start_str}\n"
                     f"End: {end_str}\n"
-                    f"Amount: ${float(booking.payment_amount):.2f}\n\n"
+                    f"Amount: MYR {float(booking.payment_amount):.2f}\n\n"
                     f"Thank you!"
                  )
         except Exception as e:

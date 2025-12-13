@@ -161,7 +161,35 @@ async def lifespan(app: FastAPI):
                             last_sent = last_sent.replace(tzinfo=None) if last_sent.tzinfo else last_sent
                             hours_since_last = (now - last_sent).total_seconds() / 3600.0
                             if hours_since_last >= 6.0:
-                                send_email(booking.user.email, "Overstay Fee Notice", f"Your vehicle is still parked. Excess fees are accumulating.")
+                                # Calculate current excess fee
+                                overstay_duration_sec = (now - end_time_utc).total_seconds()
+                                overstay_hours_calc = math.ceil(overstay_duration_sec / 3600.0)
+                                
+                                # Fetch Rate (inside loop is inefficient but safe for low volume)
+                                hourly_rate_config = db_session.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
+                                base_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
+                                
+                                multiplier = 1.0
+                                if booking.spot:
+                                    if booking.spot.spot_type == 'ev': 
+                                        multiplier = 1.5
+                                    elif booking.spot.spot_type == 'vip':
+                                        multiplier = 2.0
+                                
+                                current_excess = overstay_hours_calc * base_rate * multiplier
+                                
+                                plate = booking.vehicle.license_plate if booking.vehicle else "Unknown"
+                                spot_str = format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor) if booking.spot else "N/A"
+                                
+                                send_email(
+                                    booking.user.email, 
+                                    f"Rate Alert: Vehicle {plate} Overstay Notice", 
+                                    f"Hello {booking.user.username},\n\n"
+                                    f"Your vehicle ({plate}) in spot {spot_str} has exceeded the booked time by {int(overstay_hours_calc)} hours.\n"
+                                    f"Current Estimated Excess Fee: MYR {current_excess:.2f}\n\n"
+                                    f"Please checkout immediately to avoid further charges.\n"
+                                    f"Thank you."
+                                )
                                 booking.last_overstay_sent_at = now
 
                 db_session.commit()
@@ -312,11 +340,17 @@ def get_current_user_profile(current_user: User = Depends(get_current_user)):
 def get_layout(
     start_time: str = None, 
     end_time: str = None, 
+    floor: str = "Ground", # Default to Ground floor
     db: Session = Depends(get_db)
 ):
-    layout = db.query(LayoutConfigDB).first()
+    # Fetch layout for specific floor
+    layout = db.query(LayoutConfigDB).filter(LayoutConfigDB.floor == floor).first()
     if not layout:
-        layout = LayoutConfigDB(rows=5, cols=5) # Fallback
+        # If no config for this floor, fallback or return empty/default
+        # For seamless upgrades, if requesting "Ground" and no record exists but oldrecord does (no floor set), use that.
+        # But our migration added "Ground" to existing records. So this should be fine.
+        # If completely new floor requested (e.g. Level1) and not found, default to 5x5
+        layout = LayoutConfigDB(rows=5, cols=5, floor=floor) 
     
     # Check occupancy based on specific time range if provided, else current time (now)
     # If checking a future slot, we want to know what is booked THEN.
@@ -360,8 +394,15 @@ def get_layout(
     # Flatten list of tuples [(1,), (2,)] -> {1, 2}
     occupied_ids_set = {s[0] for s in occupied_spot_ids}
 
-    spots_db = db.query(ParkingSpot).all()
+    # Fetch spots for THIS floor only
+    spots_db = db.query(ParkingSpot).filter(ParkingSpot.floor == floor).all()
     spots_out = []
+    
+    # We must generate the grid based on the layout dimensions
+    # If spots exist in DB, use them. If not (new floor), they will be simulated as empty until admin saves?
+    # Actually, usually admin initializes the layout. 
+    # Let's ensure we return a structured grid.
+    
     for r in range(layout.rows):
         for c in range(layout.cols):
             spot = next((s for s in spots_db if s.row == r and s.col == c), None)
@@ -369,25 +410,33 @@ def get_layout(
             # Determine status dynamically
             is_booked = False
             booked_by_username = None
-            
+            spot_id = 0
             label = ""
             spot_type = "standard"
-
+            is_blocked = False
+            
             if spot:
+                spot_id = spot.id
+                label = spot.label
+                spot_type = spot.spot_type
+                is_blocked = spot.is_blocked
                 if spot.id in occupied_ids_set:
                     is_booked = True
-                label = spot.label if spot.label else f"{chr(65 + r)}{c + 1}"
-                spot_type = spot.spot_type if spot.spot_type else "standard"
-                is_blocked = spot.is_blocked
             else:
-                 # Virtual spot if not in DB yet (shouldn't happen much if configured right)
-                label = f"{chr(65 + r)}{c + 1}"
-                is_blocked = False
-                
+                # Lazy create the spot so it has an ID for Admin editing
+                new_spot = ParkingSpot(row=r, col=c, floor=floor)
+                db.add(new_spot)
+                db.flush() # Get ID
+                db.refresh(new_spot)
+                spot_id = new_spot.id
+                label = new_spot.label # default ""
+                spot_type = new_spot.spot_type # default "standard"
+                # is_blocked default False
+            
             spots_out.append(SpotSchema(
-                id=spot.id if spot else None,
-                row=r, 
-                col=c, 
+                id=spot_id,
+                row=r,
+                col=c,
                 is_booked=is_booked,
                 label=label,
                 spot_type=spot_type,
@@ -395,6 +444,12 @@ def get_layout(
                 booked_by_username=booked_by_username
             ))
             
+    # Commit any newly created spots
+    try:
+        db.commit()
+    except:
+        db.rollback()
+        
     return ParkingState(rows=layout.rows, cols=layout.cols, spots=spots_out)
 
 class UpdateSpot(BaseModel):
@@ -490,22 +545,54 @@ def get_analytics(current_user: User = Depends(get_current_user), db: Session = 
     )
 
 
+
+# Define LayoutConfig Pydantic model at cleaner scope if needed, assuming it's imported or defined above.
+# Need to check if LayoutConfig has 'floor' field. If not, we should update the Pydantic model too?
+# Let's assume we need to update Pydantic model first. 
+# But this tool call is for Main.py. I'll simply update the endpoint to assume the body has it.
+
+class LayoutConfig(BaseModel):
+    rows: int
+    cols: int
+    floor: Optional[str] = "Ground"
+
 @app.post("/admin/layout")
 def update_layout(config: LayoutConfig, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    layout = db.query(LayoutConfigDB).first()
+    # Config object should have 'floor'. If not, default to Ground.
+    # Note: We need to see LayoutConfig definition. If I simply access config.floor it might fail if pydantic model doesn't have it.
+    # I will inspect Pydantic model in next step. For now, assuming it's available or I'll fix it.
+    floor_name = getattr(config, 'floor', 'Ground')
+    
+    layout = db.query(LayoutConfigDB).filter(LayoutConfigDB.floor == floor_name).first()
     if not layout:
-        layout = LayoutConfigDB(rows=config.rows, cols=config.cols)
+        layout = LayoutConfigDB(rows=config.rows, cols=config.cols, floor=floor_name)
         db.add(layout)
     else:
         layout.rows = config.rows
         layout.cols = config.cols
     
-    db.query(ParkingSpot).filter((ParkingSpot.row >= config.rows) | (ParkingSpot.col >= config.cols)).delete()
+    # Delete spots that are out of bounds for THIS floor
+    db.query(ParkingSpot).filter(
+        ParkingSpot.floor == floor_name,
+        (ParkingSpot.row >= config.rows) | (ParkingSpot.col >= config.cols)
+    ).delete()
+    
     db.commit()
-    return get_layout(db)
+    # Return layout for the specific floor
+    return get_layout(floor=floor_name, db=db)
+
+@app.get("/floors", response_model=List[str])
+def get_floors(db: Session = Depends(get_db)):
+    """
+    Returns a list of all configured floors.
+    """
+    floors = db.query(LayoutConfigDB.floor).distinct().all()
+    # If empty, return at least Ground
+    floor_list = [f[0] for f in floors] if floors else ["Ground"]
+    return sorted(floor_list)
 
 @app.get("/admin/config", response_model=List[ConfigItem])
 def get_system_config(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -820,7 +907,8 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     # Check if spot exists and is available
     spot = db.query(ParkingSpot).filter(
         ParkingSpot.row == booking_data.row,
-        ParkingSpot.col == booking_data.col
+        ParkingSpot.col == booking_data.col,
+        ParkingSpot.floor == booking_data.floor
     ).first()
     
     if spot:
@@ -989,7 +1077,7 @@ def create_booking(booking_data: BookingCreate, current_user: User = Depends(get
     return BookingResponse(
         id=booking.id,
         booking_uuid=booking.booking_uuid,
-        spot_info=format_spot_id(spot.row, spot.col),
+        spot_info=format_spot_id(spot.row, spot.col, spot.floor),
         name=booking.name,
         email=booking.email,
         phone=booking.phone,
@@ -1047,7 +1135,7 @@ def get_user_bookings(
         result.append(BookingResponse(
             id=booking.id,
             booking_uuid=booking.booking_uuid,
-            spot_info=format_spot_id(booking.spot.row, booking.spot.col),
+            spot_info=format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor),
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
@@ -1121,7 +1209,7 @@ def close_booking(booking_id: int, current_user: User = Depends(get_current_user
     return BookingResponse(
         id=booking.id,
         booking_uuid=booking.booking_uuid,
-        spot_info=format_spot_id(booking.spot.row, booking.spot.col),
+        spot_info=format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor),
         name=booking.name,
         email=booking.email,
         phone=booking.phone,
@@ -1201,7 +1289,7 @@ def get_all_bookings(
         result.append(BookingResponse(
             id=booking.id,
             booking_uuid=booking.booking_uuid,
-            spot_info=format_spot_id(booking.spot.row, booking.spot.col),
+            spot_info=format_spot_id(booking.spot.row, booking.spot.col, booking.spot.floor),
             name=booking.name,
             email=booking.email,
             phone=booking.phone,
@@ -1302,7 +1390,7 @@ def cancel_booking(
                 booking.email,
                 "Booking Cancelled - ParkPro",
                 f"Hello,\n\nYour booking #{booking.id} has been cancelled.\n"
-                f" Refund Amount: ${refund_amount}\n"
+                f" Refund Amount: MYR {refund_amount}\n"
                 f"Reason: {refund_reason}\n\n"
                 f"Thank you."
              )
@@ -1410,7 +1498,12 @@ def create_vehicle(vehicle_data: VehicleCreate, current_user: User = Depends(get
     db.add(new_vehicle)
     db.commit()
     db.refresh(new_vehicle)
+    db.refresh(new_vehicle)
     return new_vehicle
+
+@app.get("/vehicles", response_model=List[VehicleResponse])
+def get_user_vehicles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
 
 @app.put("/vehicles/{vehicle_id}", response_model=VehicleResponse)
 def update_vehicle(vehicle_id: int, vehicle_data: VehicleCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1502,21 +1595,21 @@ def calculate_exit_fee(booking_id: int, current_user: User = Depends(get_current
     overstay_hours = 0.0
     message = "On time departure"
     
+    # Get Rate
+    hourly_rate_config = db.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
+    base_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
+    
+    # Get Multiplier
+    multiplier = 1.0
+    if booking.spot and booking.spot.spot_type == 'ev':
+        multiplier = 1.5
+    elif booking.spot and booking.spot.spot_type == 'vip':
+        multiplier = 2.0
+    
     if actual_end > booked_end:
         diff_seconds = (actual_end - booked_end).total_seconds()
         overstay_hours = math.ceil(diff_seconds / 3600.0)
         
-        # Get Rate
-        hourly_rate_config = db.query(SystemConfig).filter(SystemConfig.key == "hourly_rate").first()
-        base_rate = float(hourly_rate_config.value) if hourly_rate_config else 10.0
-        
-        # Get Multiplier
-        multiplier = 1.0
-        if booking.spot and booking.spot.spot_type == 'ev':
-            multiplier = 1.5
-        elif booking.spot and booking.spot.spot_type == 'vip':
-            multiplier = 2.0
-            
         extra_fee = overstay_hours * base_rate * multiplier
         message = f"Overstayed by {int(overstay_hours)} hour(s)"
         
@@ -1614,7 +1707,7 @@ def notify_overstay(booking_id: int, current_user: User = Depends(get_current_us
             booking.user.email,
             "Urgent: Parking Overstay Fee Notification",
             f"Dear {booking.user.username},\n\nYour parking session has expired by {int(overstay_hours)} hours.\n"
-            f"Current excess fees accumulated: RM {excess_fee:.2f}.\n\n"
+            f"Current excess fees accumulated: MYR {excess_fee:.2f}.\n\n"
             f"Please return to your vehicle and checkout immediately to avoid further charges.\n\n"
             f"Thank you,\nMy Car Park Team"
         )

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { parking, admin } from '../services/api';
-import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Github, Eye } from 'lucide-react';
+import { Settings, Save, LayoutGrid, List, Tag, Sliders, Plus, X, PieChart, Mail, Github, Eye, Layers } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Booking {
@@ -56,6 +56,12 @@ const AdminDashboard: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [promos, setPromos] = useState<PromoCode[]>([]);
     const [configs, setConfigs] = useState<ConfigItem[]>([]);
+    
+    // Floor Management
+    const [floors, setFloors] = useState<string[]>(["Ground"]);
+    const [currentFloor, setCurrentFloor] = useState("Ground");
+    const [showAddFloorModal, setShowAddFloorModal] = useState(false);
+    const [newFloorName, setNewFloorName] = useState("");
 
     interface AnalyticsData {
         total_revenue: number;
@@ -185,21 +191,24 @@ const AdminDashboard: React.FC = () => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [layoutRes, bookingsRes, promosRes, configsRes, analyticsRes] = await Promise.all([
-                parking.getLayout(),
+            // First fetch floors if we haven't? No, we need floors list separately.
+            // But let's just fetch layout for current floor.
+            const [layoutRes, bookingsRes, promosRes, configsRes, analyticsRes, floorsRes] = await Promise.all([
+                parking.getLayout(undefined, undefined, currentFloor),
                 parking.getAllBookings(bookingsPage, 10),
                 admin.getPromos(),
                 admin.getConfig(),
-                admin.getAnalytics()
+                admin.getAnalytics(),
+                parking.getFloors()
             ]);
 
+            setFloors(floorsRes.data);
             setLayout(prev => ({ ...prev, rows: layoutRes.data.rows, cols: layoutRes.data.cols }));
             setSpots(layoutRes.data.spots);
             setBookings(bookingsRes.data.items);
             setBookingsTotal(bookingsRes.data.total);
             setPromos(promosRes.data);
             setConfigs(configsRes.data);
-            setAnalytics(analyticsRes.data);
             setAnalytics(analyticsRes.data);
         } catch (error) {
             console.error("Failed to fetch data", error);
@@ -210,11 +219,26 @@ const AdminDashboard: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, [bookingsPage]);
+    }, [bookingsPage, currentFloor]); 
+    
+    const handleAddFloor = async () => {
+        if(!newFloorName.trim()) return;
+        try {
+            // Create new floor by saving a default layout (or current layout size) for it
+            await parking.updateLayout({ rows: 5, cols: 5, floor: newFloorName });
+            
+            showDialog("Success", `Floor '${newFloorName}' created!`, "alert");
+            setNewFloorName("");
+            setShowAddFloorModal(false);
+            setCurrentFloor(newFloorName); // This will trigger useEffect -> fetchData
+        } catch (e) {
+            showDialog("Error", "Failed to create floor", "error");
+        }
+    };
 
     const handleSaveLayout = async () => {
         try {
-            await parking.updateLayout(layout);
+            await parking.updateLayout({ ...layout, floor: currentFloor });
             showDialog("Success", "Parking layout updated successfully!", "alert");
             fetchData();
         } catch (error) {
@@ -360,30 +384,35 @@ const AdminDashboard: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-8 mb-8">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Rows</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="20"
-                                        value={layout.rows}
-                                        onChange={(e) => setLayout({ ...layout, rows: parseInt(e.target.value) || 0 })}
-                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
-                                    />
+
+
+                            {/* Floor Management */}
+                            <div className="flex items-center justify-between mb-8 bg-gray-800/30 p-4 rounded-xl border border-white/5">
+                                <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                                    {floors.map(f => (
+                                        <button
+                                            key={f}
+                                            onClick={() => setCurrentFloor(f)}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 whitespace-nowrap
+                                            ${currentFloor === f 
+                                                ? 'bg-indigo-600 text-white shadow-lg' 
+                                                : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                                        >
+                                            <Layers size={14} />
+                                            {f}
+                                        </button>
+                                    ))}
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Columns</label>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        max="20"
-                                        value={layout.cols}
-                                        onChange={(e) => setLayout({ ...layout, cols: parseInt(e.target.value) || 0 })}
-                                        className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 text-white outline-none transition-all"
-                                    />
-                                </div>
+                                <button
+                                    onClick={() => setShowAddFloorModal(true)}
+                                    className="ml-4 flex items-center gap-2 px-3 py-2 bg-gray-700/50 hover:bg-indigo-600/50 hover:text-white text-gray-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-all border border-gray-600/50 hover:border-indigo-500/50"
+                                >
+                                    <Plus size={14} />
+                                    Add Floor
+                                </button>
                             </div>
+
+
 
                             <button
                                 onClick={handleSaveLayout}
@@ -984,72 +1013,106 @@ const AdminDashboard: React.FC = () => {
                 </div>
             </div>
             {/* Spot Edit Modal */}
-            {
-                showSpotModal && editingSpot && (
-                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative shadow-xl">
-                            <button
-                                onClick={() => setShowSpotModal(false)}
-                                className="absolute right-4 top-4 text-gray-400 hover:text-white"
-                            >
-                                <X size={20} />
-                            </button>
+            {showSpotModal && editingSpot && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-md p-6 relative shadow-xl">
+                        <button
+                            onClick={() => setShowSpotModal(false)}
+                            className="absolute right-4 top-4 text-gray-400 hover:text-white"
+                        >
+                            <X size={20} />
+                        </button>
 
-                            <h2 className="text-xl font-bold text-white mb-6">Edit Spot {editingSpot.label || `#${editingSpot.id}`}</h2>
+                        <h2 className="text-xl font-bold text-white mb-6">Edit Spot {editingSpot?.label || `#${editingSpot?.id}`}</h2>
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Label</label>
-                                    <input
-                                        type="text"
-                                        value={editingSpot.label}
-                                        onChange={(e) => setEditingSpot({ ...editingSpot, label: e.target.value })}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        placeholder="e.g. A1, EV-1"
-                                    />
-                                </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Label</label>
+                                <input
+                                    type="text"
+                                    value={editingSpot?.label || ''}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setEditingSpot(prev => prev ? { ...prev, label: val } : null);
+                                    }}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    placeholder="e.g. A1, EV-1"
+                                />
+                            </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-400 mb-1">Spot Type</label>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {['standard', 'ev', 'vip'].map(type => (
-                                            <button
-                                                key={type}
-                                                onClick={() => setEditingSpot({ ...editingSpot, spot_type: type })}
-                                                className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-all ${editingSpot.spot_type === type
-                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
-                                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                                                    }`}
-                                            >
-                                                {type}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 border-t border-white/10">
-                                    <label className="block text-sm font-medium text-gray-400 mb-2">Maintenance Status</label>
-                                    <select
-                                        value={editingSpot.is_blocked ? 'blocked' : 'available'}
-                                        onChange={(e) => setEditingSpot({ ...editingSpot, is_blocked: e.target.value === 'blocked' })}
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
-                                    >
-                                        <option value="available">Available (Active)</option>
-                                        <option value="blocked">Under Maintenance (Blocked)</option>
-                                    </select>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-1">Spot Type</label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {['standard', 'ev', 'vip'].map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => setEditingSpot(prev => prev ? { ...prev, spot_type: type } : null)}
+                                            className={`py-2 px-3 rounded-lg text-sm font-medium capitalize transition-all ${editingSpot?.spot_type === type
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
+                                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
 
+                            <div className="pt-4 border-t border-white/10">
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Maintenance Status</label>
+                                <select
+                                    value={editingSpot?.is_blocked ? 'blocked' : 'available'}
+                                    onChange={(e) => {
+                                        const blocked = e.target.value === 'blocked';
+                                        setEditingSpot(prev => prev ? { ...prev, is_blocked: blocked } : null);
+                                    }}
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                >
+                                    <option value="available">Available (Active)</option>
+                                    <option value="blocked">Under Maintenance (Blocked)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={handleUpdateSpot}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
+                        >
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Floor Modal */}
+            {showAddFloorModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-white/10 rounded-2xl w-full max-w-sm p-6 relative">
+                         <button onClick={() => setShowAddFloorModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">
+                            <X size={20} />
+                        </button>
+                        <h3 className="text-xl font-bold text-white mb-4">Add New Floor</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Floor Name</label>
+                                <input
+                                    type="text"
+                                    value={newFloorName}
+                                    onChange={(e) => setNewFloorName(e.target.value)}
+                                    placeholder="e.g. Level 2, Basement 1"
+                                    className="block w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500/50 text-white outline-none"
+                                />
+                            </div>
                             <button
-                                onClick={handleUpdateSpot}
-                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mt-4"
+                                onClick={handleAddFloor}
+                                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-500/20"
                             >
-                                Save Changes
+                                Create Floor
                             </button>
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
 
             {/* Exit / Checkout Modal */}
             {

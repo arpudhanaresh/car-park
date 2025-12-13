@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { parking, vehicles } from '../services/api';
-import { Clock, MapPin, Car, Check, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { Clock, MapPin, Car, CarFront, Check, ChevronRight, ChevronLeft, Loader2, Layers } from 'lucide-react';
 
 interface Spot {
     id: number;
@@ -12,12 +12,14 @@ interface Spot {
     label: string;
     spot_type: 'standard' | 'vip' | 'ev';
     booked_by_username?: string;
+    floor?: string;
 }
 
 interface Layout {
     rows: number;
     cols: number;
     spots: Spot[];
+    floor?: string;
 }
 
 const BookingPage: React.FC = () => {
@@ -80,6 +82,8 @@ const BookingPage: React.FC = () => {
     }, [startTime, date]);
 
     const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+    const [floors, setFloors] = useState<string[]>(["Ground"]);
+    const [currentFloor, setCurrentFloor] = useState("Ground");
 
     const [vehicleData, setVehicleData] = useState({
         license_plate: '',
@@ -97,7 +101,18 @@ const BookingPage: React.FC = () => {
     useEffect(() => {
         // fetchLayout(); // Don't fetch layout immediately, wait for time selection
         fetchMyVehicles();
+        fetchFloors();
     }, []);
+
+    const fetchFloors = async () => {
+        try {
+            const res = await parking.getFloors();
+            setFloors(res.data);
+            if (res.data.length > 0) setCurrentFloor(res.data[0]);
+        } catch (e) {
+            console.error("Failed to fetch floors", e);
+        }
+    };
 
     // Fetch layout when entering step 2 with selected times
     useEffect(() => {
@@ -106,10 +121,10 @@ const BookingPage: React.FC = () => {
             const end = new Date(`${endDate}T${endTime}`);
 
             if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                fetchLayout(start.toISOString(), end.toISOString());
+                fetchLayout(start.toISOString(), end.toISOString(), currentFloor);
             }
         }
-    }, [step, date, startTime, endDate, endTime]);
+    }, [step, date, startTime, endDate, endTime, currentFloor]);
 
     // Update vehicle form defaults when user data loads
     useEffect(() => {
@@ -123,9 +138,9 @@ const BookingPage: React.FC = () => {
         }
     }, [user]);
 
-    const fetchLayout = async (start?: string, end?: string) => {
+    const fetchLayout = async (start?: string, end?: string, floor?: string) => {
         try {
-            const response = await parking.getLayout(start, end);
+            const response = await parking.getLayout(start, end, floor || currentFloor);
             setLayout(response.data);
         } catch (error) {
             console.error("Failed to fetch layout", error);
@@ -263,6 +278,7 @@ const BookingPage: React.FC = () => {
             const response = await parking.createBooking({
                 row: selectedSpot.row,
                 col: selectedSpot.col,
+                floor: currentFloor,
                 license_plate: vehicleData.license_plate,
                 vehicle_data: {
                     license_plate: vehicleData.license_plate,
@@ -436,12 +452,33 @@ const BookingPage: React.FC = () => {
                             Select a Spot
                         </h2>
 
+                        {/* Floor Switcher */}
+                        {floors.length > 1 && (
+                            <div className="flex justify-center mb-6">
+                                <div className="flex items-center gap-2 bg-gray-800/50 p-1 rounded-xl border border-gray-700">
+                                    {floors.map(f => (
+                                        <button
+                                            key={f}
+                                            onClick={() => setCurrentFloor(f)}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2
+                                                ${currentFloor === f
+                                                    ? 'bg-indigo-600 text-white shadow-lg'
+                                                    : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                                        >
+                                            <Layers size={14} />
+                                            {f}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {layout ? (
-                            <div className="flex justify-center overflow-auto pb-4 max-h-[60vh]">
+                            <div className="flex justify-center overflow-x-auto pb-4">
                                 <div
-                                    className="grid gap-3 p-6 bg-gray-800/30 rounded-2xl border border-gray-700/50 min-w-max"
+                                    className="grid gap-3 sm:gap-4 p-4 bg-gray-800/30 rounded-2xl border border-gray-700/50 min-w-max"
                                     style={{
-                                        gridTemplateColumns: `repeat(${layout.cols}, minmax(50px, 1fr))`
+                                        gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`
                                     }}
                                 >
                                     {Array.from({ length: layout.rows }).map((_, r) => (
@@ -456,21 +493,42 @@ const BookingPage: React.FC = () => {
                                                     disabled={isBooked}
                                                     onClick={() => setSelectedSpot(spot || { row: r, col: c, id: 0, is_booked: false, is_blocked: false, label: '', spot_type: 'standard' })}
                                                     className={`
-                            h-14 rounded-xl flex items-center justify-center text-xs font-bold transition-all duration-300 relative overflow-hidden ring-1 ring-inset
+                            h-20 w-12 rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all duration-300 relative ring-inset outline-none
                             ${isBooked
-                                                            ? 'bg-red-900/20 text-red-500/50 cursor-not-allowed border-red-900/20 ring-red-900/20'
+                                                            ? 'text-red-500/50 cursor-not-allowed opacity-50'
                                                             : isSelected
-                                                                ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] ring-indigo-400 scale-110 z-10'
+                                                                ? 'text-indigo-500 scale-110 z-10 drop-shadow-[0_0_8px_rgba(99,102,241,0.6)]'
                                                                 : spot?.spot_type === 'ev'
-                                                                    ? 'bg-green-900/20 text-green-400 ring-green-500/50 hover:bg-green-900/40 hover:text-green-300'
+                                                                    ? 'text-green-500/70 hover:text-green-400 hover:scale-105'
                                                                     : spot?.spot_type === 'vip'
-                                                                        ? 'bg-yellow-900/20 text-yellow-400 ring-yellow-500/50 hover:bg-yellow-900/40 hover:text-yellow-300'
-                                                                        : 'bg-gray-800/50 text-gray-400 ring-gray-700 hover:ring-indigo-500/50 hover:text-indigo-300 hover:bg-gray-700/50'
+                                                                        ? 'text-yellow-500/70 hover:text-yellow-400 hover:scale-105'
+                                                                        : 'text-gray-700 hover:text-indigo-400 hover:scale-105'
                                                         }
                           `}
                                                 >
-                                                    {spot?.spot_type === 'ev' && <span className="absolute top-1 right-1 text-[8px]">⚡</span>}
-                                                    {isBooked ? 'X' : (spot?.label || `${String.fromCharCode(65 + r)}${c + 1}`)}
+                                                    {/* Car Icon or Parking Bay */}
+                                                    {isBooked || isSelected ? (
+                                                        <CarFront size={44} strokeWidth={1.5} fill="currentColor" className="opacity-90" />
+                                                    ) : (
+                                                        <div className={`w-full h-full border-2 border-dashed rounded-lg flex items-center justify-center
+                                                            ${spot?.spot_type === 'ev' ? 'border-green-500/30 bg-green-900/5' :
+                                                                spot?.spot_type === 'vip' ? 'border-yellow-500/30 bg-yellow-900/5' :
+                                                                    'border-gray-700 bg-gray-800/20'
+                                                            }
+                                                        `}>
+                                                            {/* Empty bay styling can go here, maybe a small P or nothing */}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Label Overlay */}
+                                                    <span className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[10px] font-mono
+                                                        ${isBooked ? 'text-white/20' : isSelected ? 'text-white font-bold' : 'text-gray-500'}
+                                                    `}>
+                                                        {isBooked ? 'X' : (spot?.label || `${String.fromCharCode(65 + r)}${c + 1}`)}
+                                                    </span>
+
+                                                    {/* Status Icons */}
+                                                    {spot?.spot_type === 'ev' && <span className="absolute -top-2 -right-2 text-[10px] bg-gray-900 rounded-full p-0.5 border border-green-500/30">⚡</span>}
                                                 </button>
                                             );
                                         })
@@ -501,10 +559,7 @@ const BookingPage: React.FC = () => {
                                 <div className="w-3 h-3 bg-indigo-600 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
                                 <span className="text-white font-medium">Selected</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-indigo-600 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
-                                <span className="text-gray-300">Selected</span>
-                            </div>
+
                             <div className="flex items-center gap-2">
                                 <div className="w-3 h-3 bg-red-900/50 border border-red-900 rounded-full"></div>
                                 <span className="text-gray-500">Occupied</span>

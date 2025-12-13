@@ -37,6 +37,7 @@ class ParkingSpot(Base):
     label = Column(String(10), default="") # e.g. "A1", "VIP-1"
     spot_type = Column(String(20), default="standard") # standard, ev, vip
     is_blocked = Column(Boolean, default=False)
+    floor = Column(String(50), default="Ground") # New floor field
 
     booked_by = relationship("User")
 
@@ -136,6 +137,7 @@ class BookingAuditLog(Base):
 class LayoutConfigDB(Base):
     __tablename__ = "layout_config"
     id = Column(Integer, primary_key=True, index=True)
+    floor = Column(String(50), default="Ground") # Grouping Key
     rows = Column(Integer)
     cols = Column(Integer)
 
@@ -187,6 +189,7 @@ class SpotSchema(BaseModel):
     label: str = ""
     spot_type: str = "standard"
     is_blocked: bool = False
+    floor: Optional[str] = "Ground"
     booked_by_username: Optional[str] = None
 
 class UpdateSpot(BaseModel):
@@ -254,6 +257,7 @@ class VehicleResponse(BaseModel):
 class BookingCreate(BaseModel):
     row: int
     col: int
+    floor: Optional[str] = "Ground"
     license_plate: str
     vehicle_data: Optional[VehicleCreate] = None
     name: str
